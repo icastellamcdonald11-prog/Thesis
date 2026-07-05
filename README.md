@@ -4,7 +4,22 @@ Monitors Chinese-language media and social trending data, triages stories agains
 FT-China pitch criteria, and produces a daily digest of 5–10 pitch candidates plus
 recurring-theme clusters. See `CLAUDE.md` for the full product brief and rationale.
 
-## Status: scaffolded, not yet field-verified
+## Live-run findings (first GitHub Actions dry run, 2026-07-05)
+
+- **tophub scraper works** — 3,023 items fetched on the first try. A `max_items: 500`
+  cap was added to protect the triage budget.
+- **rsshub.app blocks datacenter IPs** (instant 403 on every route from the Actions
+  runner). Fallback mirrors are now configured in `config/settings.yaml` and tried
+  in order; the durable fix is self-hosting RSSHub and putting its URL first.
+- **weibo_hot** was switched from RSSHub to a direct scraper of Weibo's public
+  hot-search JSON endpoint.
+- **36kr** was switched to its native RSS feed (`https://36kr.com/feed`), removing
+  the RSSHub dependency.
+- **china_energy_news** is disabled: the guessed listing URL 404s. Find the real
+  news-section URL on cnenergynews.cn in a browser, update `scrape_config` in
+  `sources.yaml`, and re-enable.
+
+## Status: scaffolded, partially field-verified
 
 This codebase was built in a sandboxed environment with **no general internet
 egress** (only anthropic.com, pypi, npm, and a few infra domains were reachable —

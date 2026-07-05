@@ -6,10 +6,12 @@ import pipeline.acquisition.ratelimit as ratelimit
 from pipeline.acquisition.base import AdapterError
 from pipeline.acquisition.scraping.generic import GenericSelectorScraper
 from pipeline.acquisition.scraping.tophub import TophubScraper
+from pipeline.acquisition.scraping.weibo_hot import WeiboHotScraper
 from tests.conftest import FakeResponse
 
 LIST_FIXTURE = Path(__file__).parent / "fixtures" / "sample_list.html"
 TOPHUB_FIXTURE = Path(__file__).parent / "fixtures" / "sample_tophub.html"
+WEIBO_FIXTURE = Path(__file__).parent / "fixtures" / "sample_weibo_hot.json"
 
 
 def test_generic_scraper_parses_rows(monkeypatch, settings):
@@ -61,6 +63,26 @@ def test_tophub_scraper_groups_by_platform(monkeypatch, settings):
     assert len(items) == 3
     assert items[0].title_zh == "[微博] 话题一"
     assert items[2].title_zh == "[知乎] 话题三"
+
+
+def test_weibo_hot_scraper_parses_and_skips_ads(monkeypatch, settings):
+    monkeypatch.setattr(ratelimit.requests, "get", lambda *a, **k: FakeResponse(WEIBO_FIXTURE.read_bytes()))
+
+    source = {"id": "weibo_hot", "type": "scrape", "route": "weibo_hot", "item_type": "trend"}
+    items = WeiboHotScraper().fetch(source, settings)
+
+    assert len(items) == 2  # ad entry excluded
+    assert items[0].title_zh == "某地楼市新政出台"
+    assert items[0].item_type == "trend"
+    assert "s.weibo.com" in items[0].url
+
+
+def test_weibo_hot_scraper_raises_on_non_json(monkeypatch, settings):
+    monkeypatch.setattr(ratelimit.requests, "get", lambda *a, **k: FakeResponse(b"<html>login required</html>"))
+
+    source = {"id": "weibo_hot", "type": "scrape", "route": "weibo_hot"}
+    with pytest.raises(AdapterError):
+        WeiboHotScraper().fetch(source, settings)
 
 
 def test_tophub_scraper_raises_when_page_structure_changed(monkeypatch, settings):
