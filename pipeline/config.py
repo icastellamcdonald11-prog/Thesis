@@ -79,6 +79,24 @@ class Settings:
         )
 
 
+def api_key_problem(key: str | None) -> str | None:
+    """Returns a human-readable problem description if the Anthropic API key is
+    unusable, or None if it looks fine. Catches paste accidents (truncation
+    ellipses, arrows, whitespace) before they surface as deep httpx tracebacks."""
+    if not key:
+        return "ANTHROPIC_API_KEY is not set"
+    bad = sorted({c for c in key if not c.isascii() or c.isspace()})
+    if bad:
+        return (
+            f"ANTHROPIC_API_KEY contains invalid character(s) {bad!r} — it was "
+            "probably copied from a truncated display. Re-copy the raw key from "
+            "console.anthropic.com and update the GitHub Actions secret."
+        )
+    if not key.startswith("sk-ant-"):
+        return "ANTHROPIC_API_KEY does not start with 'sk-ant-' — is it the right value?"
+    return None
+
+
 def load_sources(sources_path: Path | None = None) -> list[dict[str, Any]]:
     sources_path = sources_path or (REPO_ROOT / "sources.yaml")
     raw = _load_yaml(sources_path)

@@ -15,7 +15,7 @@ import logging
 
 from anthropic import Anthropic
 
-from pipeline.config import Settings
+from pipeline.config import Settings, api_key_problem
 from pipeline.db import (
     diffcheck_count_today,
     get_connection,
@@ -46,6 +46,11 @@ def run(limit: int | None = None, dry_run: bool = False) -> dict[str, int]:
         )
 
         if dry_run or not pending:
+            return {"pending": len(pending), "checked": 0, "ft_covered": 0}
+
+        problem = api_key_problem(settings.anthropic_api_key)
+        if problem:
+            logger.error("Cannot run diffcheck: %s", problem)
             return {"pending": len(pending), "checked": 0, "ft_covered": 0}
 
         client = Anthropic(api_key=settings.anthropic_api_key)
