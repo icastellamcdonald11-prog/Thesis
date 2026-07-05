@@ -1,1 +1,134 @@
-# Thesis
+# FT China Pitch-Discovery Pipeline
+
+Monitors Chinese-language media and social trending data, triages stories against
+FT-China pitch criteria, and produces a daily digest of 5–10 pitch candidates plus
+recurring-theme clusters. See `CLAUDE.md` for the full product brief and rationale.
+
+## Status: scaffolded, not yet field-verified
+
+This codebase was built in a sandboxed environment with **no general internet
+egress** (only anthropic.com, pypi, npm, and a few infra domains were reachable —
+everything else, including rsshub.app, tophub.today, ft.com, and the Chinese
+outlets, returned `403` at the network gateway) and **no `ANTHROPIC_API_KEY`**
+available. That means every stage was built, unit-tested against fixtures, and
+smoke-tested end-to-end (`scripts/run_all.py --dry-run`), but the following from
+the brief's "Build order" still needs to happen with real network access and a
+real API key, ideally by you:
+
+1. **Verify each source** (`python -m pipeline.acquisition.run --source <id>`)
+   actually returns items. The `rsshub` routes in `sources.yaml` are best-effort
+   guesses based on RSSHub's route conventions — RSSHub routes drift, so check
+   https://docs.rsshub.app and fix the `route:` values that are wrong. The
+   `tophub` and `china_energy_news` scraper selectors (`pipeline/acquisition/scraping/`)
+   are similarly best-effort against remembered page structure and will likely
+   need their CSS selectors adjusted against the live DOM.
+2. **Run Stage 2 on a real day's haul** and eyeball the survivors together before
+   trusting the threshold defaults.
+3. **Run Stage 3 on a small sample** (`--limit 5`) to check cost and search
+   quality before raising the daily cap.
+4. Only then turn on the GitHub Actions cron for real.
+
+Everything downstream of "does the JSON parse and does the SQL do the right
+thing" — dedupe logic, batching, threshold math, cluster detection, digest
+rendering, cost caps — is implemented and covered by tests that don't require
+network or API access (`pytest`, 22 tests, all passing).
+
+## Setup
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt   # includes pytest; use requirements.txt for prod-only
+cp .env.example .env                  # fill in ANTHROPIC_API_KEY, SMTP_*, EMAIL_TO
+```
+
+## Running a stage manually
+
+Each stage is a standalone CLI plus an orchestrator:
+
+```bash
+python -m pipeline.acquisition.run [--dry-run] [--source SOURCE_ID]
+python -m pipeline.triage.run [--limit N] [--dry-run]
+python -m pipeline.diffcheck.run [--limit N] [--dry-run]
+python -m pipeline.digest.run [--no-email]
+
+python scripts/run_all.py [--dry-run]   # runs all four in order
+```
+
+`--dry-run` on Stage 1 fetches but doesn't write to SQLite. On Stage 2/3 it
+skips the paid API call entirely and just reports the pending count — useful
+for checking the backlog before spending money. `scripts/run_all.py --dry-run`
+chains all of that into one zero-cost smoke test.
+
+State lives in `data/pitch_discovery.db` (SQLite) and `digests/YYYY-MM-DD.md`.
+Mark candidates once you've decided on them:
+
+```bash
+python scripts/mark_feedback.py <item_id> pitched "why it worked"
+python scripts/mark_feedback.py <item_id> ignored
+```
+
+## Configuration
+
+- `sources.yaml` — source list. Add an `rsshub`/`rss` source with no code
+  changes. `scrape` sources need a module registered in
+  `pipeline/acquisition/scraping/registry.py` (or use `type: scrape, route: generic`
+  with a `scrape_config:` block of CSS selectors for a simple listing page).
+- `config/settings.yaml` — thresholds, batch sizes, daily caps, SMTP host/port,
+  db path. Non-secret only.
+- Secrets come from the environment (`.env` locally, GitHub Actions secrets in
+  CI): `ANTHROPIC_API_KEY`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_TO`,
+  `EMAIL_ENABLED`.
+
+## Architecture
+
+```
+pipeline/
+  acquisition/   Stage 1 — rsshub / rss / scrape adapters, dedupe, rate limiting
+  triage/        Stage 2 — Haiku batch scoring against the pitch-criteria prompt
+  cluster/       cross-story theme detection (runs as part of Stage 2)
+  diffcheck/     Stage 3 — Sonnet + hosted web_search differentiation check
+  digest/        Stage 4 — markdown render, email send, feedback.csv logging
+  db.py          SQLite schema + all queries
+  models.py      RawItem / TriageScore / DiffVerdict dataclasses
+  config.py      sources.yaml + config/settings.yaml + env loader
+scripts/
+  run_all.py         orchestrates all four stages
+  mark_feedback.py   CLI to mark a digest candidate pitched/ignored
+.github/workflows/daily.yml   cron (06:00 Asia/Shanghai) + manual dispatch
+```
+
+A broken source in Stage 1 is logged and skipped, never fatal to the run — this
+was tested for real: with all outbound network blocked, `run_all.py --dry-run`
+correctly logged all seven sources as failed and still produced a valid (empty)
+digest, exercising the full pipeline wiring end to end.
+
+## Tests
+
+```bash
+pytest
+```
+
+22 tests, no network or API key required: adapters run against fixture RSS/HTML
+in `tests/fixtures/`, Haiku/Sonnet response parsing is tested against a fake
+Anthropic client, and dedupe/cluster/digest logic run against real (temp-file)
+SQLite databases.
+
+## GitHub Actions
+
+`.github/workflows/daily.yml` runs `scripts/run_all.py` daily at 06:00 Asia/Shanghai
+(22:00 UTC) and on manual `workflow_dispatch` (with a `dry_run` input). It commits
+`data/pitch_discovery.db`, `digests/`, and `feedback.csv` back to the branch after
+each real run, so dedupe state and history persist across ephemeral runners.
+Requires repo secrets: `ANTHROPIC_API_KEY`, `SMTP_USERNAME`, `SMTP_PASSWORD`,
+`EMAIL_TO`.
+
+## Known gaps / deliberately deferred
+
+- Playwright/JS-rendered scraping isn't implemented — none of the seven starting
+  sources should need it, but if a future source does, add a dedicated adapter
+  module rather than extending `GenericSelectorScraper`.
+- Cluster detection is wired in but, per the brief, only becomes meaningful once
+  a week of real data has accumulated.
+- robots.txt compliance is a manual check for now — before you enable a new
+  scrape source, check its `robots.txt` yourself and set `enabled: false` with a
+  comment if it disallows automated access, per the brief's constraint.

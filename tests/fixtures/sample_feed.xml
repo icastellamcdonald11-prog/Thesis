@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Sample Feed</title>
+    <link>https://example.com</link>
+    <item>
+      <title>中国新能源汽车出口大增</title>
+      <link>https://example.com/articles/1</link>
+      <description>今年上半年中国新能源汽车出口同比增长显著。</description>
+      <pubDate>Mon, 01 Jul 2024 08:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>地方政府债务问题引发关注</title>
+      <link>https://example.com/articles/2</link>
+      <description>多地地方政府债务水平上升，市场担忧加剧。</description>
+      <pubDate>Mon, 01 Jul 2024 09:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

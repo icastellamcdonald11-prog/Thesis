@@ -1,0 +1,45 @@
+# Non-secret tunables. Secrets (API keys, SMTP credentials) come from the
+# environment / GitHub Actions secrets — see .env.example.
+
+timezone: "Asia/Shanghai"
+
+acquisition:
+  rsshub_base_url: "https://rsshub.app"
+  user_agent: "Mozilla/5.0 (compatible; ft-china-pitch-bot/0.1)"
+  request_timeout_seconds: 15
+  max_retries: 3
+  backoff_base_seconds: 2
+  per_domain_min_interval_seconds: 3
+  fuzzy_title_similarity_threshold: 0.85
+  fuzzy_dedupe_window_hours: 72
+
+triage:
+  model: "claude-haiku-4-5-20251001"
+  batch_size: 25
+  max_tokens: 4096
+  score_threshold_total: 4
+  score_threshold_in_niche: 1
+
+cluster:
+  window_days: 7
+  min_sources: 3
+
+diffcheck:
+  model: "claude-sonnet-5"
+  daily_cap: 15
+  max_tokens: 2048
+
+digest:
+  output_dir: "digests"
+  min_candidates: 5
+  max_candidates: 10
+
+email:
+  smtp_host: "smtp.gmail.com"
+  smtp_port: 587
+  use_tls: true
+  subject_prefix: "[FT China Pitch Digest]"
+
+storage:
+  db_path: "data/pitch_discovery.db"
+  feedback_csv: "feedback.csv"
