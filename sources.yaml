@@ -22,7 +22,10 @@ sources:
     route: weibo_hot
     category: trending
     item_type: trend   # topics, not articles — triaged differently (see triage prompt)
-    enabled: true
+    # DISABLED 2026-07-05: weibo.com/ajax/side/hotSearch 403s GitHub's datacenter
+    # IPs. Not worth fighting — the tophub source's 微博 card already carries the
+    # Weibo hot-search list. Re-enable only if tophub drops that card.
+    enabled: false
     weight: 0.6
 
   - id: tophub
@@ -53,7 +56,10 @@ sources:
   - id: jiemian
     name: 界面新闻
     type: rsshub
-    route: /jiemian/list/4
+    # /jiemian/list/4 returns 503 on every RSSHub instance (route dead server-side,
+    # confirmed 2026-07-05 — the same mirrors serve yicai/thepaper fine). Switched
+    # to the newsflash route; if this also 503s, next step is a direct scraper.
+    route: /jiemian/newsflash
     category: business
     item_type: article
     enabled: true
