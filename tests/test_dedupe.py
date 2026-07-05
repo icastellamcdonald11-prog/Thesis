@@ -1,4 +1,14 @@
 from pipeline.acquisition.dedupe import is_duplicate
+from pipeline.config import api_key_problem
+
+
+def test_api_key_problem_detection():
+    assert api_key_problem(None) is not None
+    assert api_key_problem("") is not None
+    assert "invalid character" in api_key_problem("sk-ant-api03-abc→def")
+    assert "invalid character" in api_key_problem("sk-ant-api03-abc def")
+    assert api_key_problem("not-a-key") is not None
+    assert api_key_problem("sk-ant-api03-abcdef123") is None
 from pipeline.db import get_connection, init_db, insert_item
 from pipeline.models import RawItem
 

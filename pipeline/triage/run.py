@@ -14,7 +14,7 @@ import logging
 from anthropic import Anthropic
 
 from pipeline.cluster.detect import detect_and_save_clusters
-from pipeline.config import Settings
+from pipeline.config import Settings, api_key_problem
 from pipeline.db import get_connection, init_db, items_pending_triage, save_triage
 from pipeline.logging_setup import setup_logging
 from pipeline.triage.haiku import score_batch
@@ -37,6 +37,11 @@ def run(limit: int | None = None, dry_run: bool = False) -> dict[str, int]:
         logger.info("%d items pending triage", len(pending))
 
         if dry_run or not pending:
+            return {"pending": len(pending), "scored": 0, "survived": 0}
+
+        problem = api_key_problem(settings.anthropic_api_key)
+        if problem:
+            logger.error("Cannot run triage: %s", problem)
             return {"pending": len(pending), "scored": 0, "survived": 0}
 
         client = Anthropic(api_key=settings.anthropic_api_key)
