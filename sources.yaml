@@ -1,0 +1,82 @@
+# Source list for Stage 1 acquisition. Adding a new rsshub/rss source requires
+# no code changes — just add an entry here. `scrape` sources need a matching
+# module registered in pipeline/acquisition/scraping/registry.py.
+#
+# NOTE: rsshub routes below are best-effort placeholders based on RSSHub's
+# documented route conventions. RSSHub routes drift; verify each one against
+# https://docs.rsshub.app before relying on it (see README "Known limitations").
+# This scaffold was built in a network-restricted sandbox that could not reach
+# rsshub.app, weibo.com, tophub.today, etc. to confirm these live.
+
+sources:
+  - id: weibo_hot
+    name: 微博热搜
+    type: rsshub
+    route: /weibo/search/hot
+    category: trending
+    item_type: trend   # topics, not articles — triaged differently (see triage/haiku.py)
+    enabled: true
+    weight: 0.6
+
+  - id: tophub
+    name: 今日热榜 (tophub.today)
+    type: scrape
+    route: tophub
+    category: trending
+    item_type: trend
+    enabled: true
+    weight: 0.6
+
+  - id: jiemian
+    name: 界面新闻
+    type: rsshub
+    route: /jiemian/list/4
+    category: business
+    item_type: article
+    enabled: true
+    weight: 1.0
+
+  - id: yicai
+    name: 第一财经
+    type: rsshub
+    route: /yicai/brief
+    category: markets
+    item_type: article
+    enabled: true
+    weight: 1.0
+
+  - id: 36kr
+    name: 36氪
+    type: rsshub
+    route: /36kr/motif
+    category: tech
+    item_type: article
+    enabled: true
+    weight: 1.0
+
+  - id: thepaper
+    name: 澎湃新闻
+    type: rsshub
+    route: /thepaper/featured
+    category: general
+    item_type: article
+    enabled: true
+    weight: 1.0
+
+  - id: china_energy_news
+    name: 中国能源报
+    type: scrape
+    route: generic
+    category: energy
+    item_type: article
+    enabled: true
+    weight: 1.0
+    # Generic selector-driven scraper config — tune without touching code.
+    scrape_config:
+      base_url: "http://www.cnenergynews.cn/"
+      list_url: "http://www.cnenergynews.cn/xw/"
+      list_selector: "ul.news-list li"
+      title_selector: "a"
+      link_selector: "a"
+      link_attr: "href"
+      summary_selector: null

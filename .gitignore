@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.env
+*.egg-info/
+
+# data/pitch_discovery.db and digests/*.md are intentionally committed by the
+# GitHub Actions job so day-to-day dedupe state persists across runs.

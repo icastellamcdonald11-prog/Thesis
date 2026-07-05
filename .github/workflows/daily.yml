@@ -1,0 +1,52 @@
+name: Daily China Pitch Digest
+
+on:
+  schedule:
+    # 06:00 Asia/Shanghai (UTC+8) = 22:00 UTC the previous day.
+    - cron: "0 22 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (no writes, no email, no paid API calls)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pipeline
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            python scripts/run_all.py --dry-run
+          else
+            python scripts/run_all.py
+          fi
+
+      - name: Commit updated data and digest
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          git config user.name "ft-china-pitch-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/pitch_discovery.db digests/ feedback.csv
+          git diff --cached --quiet || git commit -m "chore: daily pipeline run $(date -u +%F)"
+          git push
