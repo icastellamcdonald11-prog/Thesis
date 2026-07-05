@@ -5,10 +5,12 @@ from pipeline.acquisition.rss import RSSAdapter
 from pipeline.acquisition.rsshub import RSSHubAdapter
 from pipeline.acquisition.scraping.generic import GenericSelectorScraper
 from pipeline.acquisition.scraping.tophub import TophubScraper
+from pipeline.acquisition.scraping.weibo_hot import WeiboHotScraper
 
 _SCRAPE_ADAPTERS: dict[str, type[Adapter]] = {
     "tophub": TophubScraper,
     "generic": GenericSelectorScraper,
+    "weibo_hot": WeiboHotScraper,
 }
 
 

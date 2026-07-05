@@ -4,8 +4,16 @@
 timezone: "Asia/Shanghai"
 
 acquisition:
+  # rsshub.app blocks datacenter IPs (confirmed: instant 403 on every route from
+  # GitHub Actions runners, 2026-07-05). Fallback mirrors are tried in order after
+  # the primary fails. Public mirrors come and go — the durable fix is self-hosting
+  # RSSHub (one Docker container) and putting its URL first here.
   rsshub_base_url: "https://rsshub.app"
-  user_agent: "Mozilla/5.0 (compatible; ft-china-pitch-bot/0.1)"
+  rsshub_fallback_urls:
+    - "https://rsshub.rssforever.com"
+    - "https://hub.slarker.me"
+    - "https://rsshub.pseudoyu.com"
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
   request_timeout_seconds: 15
   max_retries: 3
   backoff_base_seconds: 2

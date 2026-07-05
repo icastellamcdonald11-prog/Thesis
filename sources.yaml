@@ -2,19 +2,26 @@
 # no code changes — just add an entry here. `scrape` sources need a matching
 # module registered in pipeline/acquisition/scraping/registry.py.
 #
-# NOTE: rsshub routes below are best-effort placeholders based on RSSHub's
-# documented route conventions. RSSHub routes drift; verify each one against
-# https://docs.rsshub.app before relying on it (see README "Known limitations").
-# This scaffold was built in a network-restricted sandbox that could not reach
-# rsshub.app, weibo.com, tophub.today, etc. to confirm these live.
+# Live-run findings (GitHub Actions, 2026-07-05):
+#   - tophub scraper WORKS (3,023 items on first fetch).
+#   - rsshub.app returns 403 to datacenter IPs — fallback mirrors configured in
+#     config/settings.yaml; self-hosting RSSHub is the durable fix.
+#   - weibo_hot switched from rsshub to a direct scraper of Weibo's public JSON API.
+#   - 36kr switched to its native RSS feed (no RSSHub dependency).
+#   - china_energy_news disabled: guessed URL path 404s, needs a human to find the
+#     right section URL and selectors (see scrape_config below, then re-enable).
+#
+# max_items caps how many fetched items a source may insert per run, to protect
+# the Stage 2 LLM budget from firehose sources. Dedupe runs before the cap bites
+# on re-fetched items, so day 2 onward mostly inserts genuinely new entries.
 
 sources:
   - id: weibo_hot
     name: 微博热搜
-    type: rsshub
-    route: /weibo/search/hot
+    type: scrape
+    route: weibo_hot
     category: trending
-    item_type: trend   # topics, not articles — triaged differently (see triage/haiku.py)
+    item_type: trend   # topics, not articles — triaged differently (see triage prompt)
     enabled: true
     weight: 0.6
 
@@ -26,6 +33,22 @@ sources:
     item_type: trend
     enabled: true
     weight: 0.6
+    max_items: 500
+    # Only cards whose platform heading contains one of these (substring match).
+    # Keeps news/finance/tech platforms, drops gaming/entertainment hot lists.
+    platforms:
+      - 微博          # Weibo
+      - 知乎          # Zhihu
+      - 百度          # Baidu hot search
+      - 今日头条      # Toutiao
+      - 36氪          # 36Kr
+      - 虎嗅          # Huxiu
+      - 雪球          # Xueqiu (markets/retail investors)
+      - 华尔街见闻    # Wallstreetcn
+      - 财联社        # Cailianshe (markets wire)
+      - 澎湃新闻      # The Paper
+      - 第一财经      # Yicai
+      - IT之家        # ITHome (tech)
 
   - id: jiemian
     name: 界面新闻
@@ -47,8 +70,8 @@ sources:
 
   - id: 36kr
     name: 36氪
-    type: rsshub
-    route: /36kr/motif
+    type: rss
+    route: https://36kr.com/feed
     category: tech
     item_type: article
     enabled: true
@@ -69,14 +92,18 @@ sources:
     route: generic
     category: energy
     item_type: article
+    # Re-enabled 2026-07-05 with the /jsxw listing URL (human-verified in a browser).
+    # Selector is a deliberately broad "any article-looking link" pattern with a
+    # minimum title length to drop nav/pagination anchors — tighten it to the real
+    # list-row selector once we can inspect the page DOM.
     enabled: true
     weight: 1.0
-    # Generic selector-driven scraper config — tune without touching code.
     scrape_config:
-      base_url: "http://www.cnenergynews.cn/"
-      list_url: "http://www.cnenergynews.cn/xw/"
-      list_selector: "ul.news-list li"
-      title_selector: "a"
-      link_selector: "a"
+      base_url: "https://www.cnenergynews.cn/"
+      list_url: "https://www.cnenergynews.cn/jsxw"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
       link_attr: "href"
       summary_selector: null
+      min_title_len: 8

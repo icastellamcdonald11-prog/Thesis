@@ -31,9 +31,35 @@ def test_rsshub_adapter_builds_url_and_parses(monkeypatch, settings):
 
     monkeypatch.setattr(ratelimit.requests, "get", fake_get)
 
-    source = {"id": "weibo_hot", "type": "rsshub", "route": "/weibo/search/hot", "item_type": "trend"}
+    source = {"id": "jiemian", "type": "rsshub", "route": "/jiemian/list/4", "item_type": "article"}
     items = RSSHubAdapter().fetch(source, settings)
 
-    assert captured_urls == [settings.acquisition["rsshub_base_url"].rstrip("/") + "/weibo/search/hot"]
+    assert captured_urls == [settings.acquisition["rsshub_base_url"].rstrip("/") + "/jiemian/list/4"]
     assert len(items) == 2
-    assert items[0].item_type == "trend"
+    assert items[0].item_type == "article"
+
+
+def test_rsshub_adapter_falls_back_to_mirror_on_403(monkeypatch, settings):
+    """Primary instance rejects (as rsshub.app does to datacenter IPs); the adapter
+    must retry the same route on the next configured mirror."""
+    content = FIXTURE.read_bytes()
+    primary = settings.acquisition["rsshub_base_url"].rstrip("/")
+    captured_urls = []
+
+    def fake_get(url, *a, **k):
+        captured_urls.append(url)
+        if url.startswith(primary):
+            return FakeResponse(b"Forbidden", status_code=403)
+        return FakeResponse(content)
+
+    monkeypatch.setattr(ratelimit.requests, "get", fake_get)
+    # Skip real backoff sleeps and cut retries so the test is instant.
+    monkeypatch.setattr(ratelimit.time, "sleep", lambda s: None)
+    monkeypatch.setitem(settings.acquisition, "max_retries", 1)
+
+    source = {"id": "jiemian", "type": "rsshub", "route": "/jiemian/list/4", "item_type": "article"}
+    items = RSSHubAdapter().fetch(source, settings)
+
+    assert len(items) == 2
+    first_mirror = settings.acquisition["rsshub_fallback_urls"][0].rstrip("/")
+    assert captured_urls[-1] == first_mirror + "/jiemian/list/4"

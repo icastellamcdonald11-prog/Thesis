@@ -53,8 +53,12 @@ def run(dry_run: bool = False, only_source: str | None = None) -> dict[str, int]
                 stats[source_id] = len(raw_items)
                 continue
 
+            max_items = source.get("max_items")
             inserted = 0
             for item in raw_items:
+                if max_items and inserted >= max_items:
+                    logger.info("Source '%s': hit max_items=%d, skipping the rest", source_id, max_items)
+                    break
                 if is_duplicate(
                     conn, item.url, item.title_zh,
                     window_hours=fuzzy_window, similarity_threshold=fuzzy_threshold,
