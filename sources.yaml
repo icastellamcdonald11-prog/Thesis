@@ -34,6 +34,21 @@ sources:
     enabled: true
     weight: 0.6
     max_items: 500
+    # Only cards whose platform heading contains one of these (substring match).
+    # Keeps news/finance/tech platforms, drops gaming/entertainment hot lists.
+    platforms:
+      - 微博          # Weibo
+      - 知乎          # Zhihu
+      - 百度          # Baidu hot search
+      - 今日头条      # Toutiao
+      - 36氪          # 36Kr
+      - 虎嗅          # Huxiu
+      - 雪球          # Xueqiu (markets/retail investors)
+      - 华尔街见闻    # Wallstreetcn
+      - 财联社        # Cailianshe (markets wire)
+      - 澎湃新闻      # The Paper
+      - 第一财经      # Yicai
+      - IT之家        # ITHome (tech)
 
   - id: jiemian
     name: 界面新闻
@@ -77,16 +92,18 @@ sources:
     route: generic
     category: energy
     item_type: article
-    # DISABLED 2026-07-05: http://www.cnenergynews.cn/xw/ redirects to https and 404s.
-    # Someone needs to visit cnenergynews.cn in a browser, find the news-listing URL,
-    # and update list_url + the selectors below, then flip enabled back to true.
-    enabled: false
+    # Re-enabled 2026-07-05 with the /jsxw listing URL (human-verified in a browser).
+    # Selector is a deliberately broad "any article-looking link" pattern with a
+    # minimum title length to drop nav/pagination anchors — tighten it to the real
+    # list-row selector once we can inspect the page DOM.
+    enabled: true
     weight: 1.0
     scrape_config:
       base_url: "https://www.cnenergynews.cn/"
-      list_url: "https://www.cnenergynews.cn/xw/"
-      list_selector: "ul.news-list li"
-      title_selector: "a"
-      link_selector: "a"
+      list_url: "https://www.cnenergynews.cn/jsxw"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
       link_attr: "href"
       summary_selector: null
+      min_title_len: 8

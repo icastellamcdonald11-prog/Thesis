@@ -85,6 +85,46 @@ def test_weibo_hot_scraper_raises_on_non_json(monkeypatch, settings):
         WeiboHotScraper().fetch(source, settings)
 
 
+def test_tophub_scraper_platform_allowlist(monkeypatch, settings):
+    monkeypatch.setattr(ratelimit.requests, "get", lambda *a, **k: FakeResponse(TOPHUB_FIXTURE.read_bytes()))
+
+    source = {"id": "tophub", "type": "scrape", "route": "tophub", "item_type": "trend",
+              "platforms": ["微博"]}
+    items = TophubScraper().fetch(source, settings)
+
+    assert len(items) == 2  # Zhihu card excluded
+    assert all(it.title_zh.startswith("[微博]") for it in items)
+
+
+def test_generic_scraper_anchor_mode_with_min_title_len(monkeypatch, settings):
+    html = (
+        "<html><body>"
+        "<a href='/jsxw/2026-07/05/article_one.html'>能源央企上半年投资数据揭示转型放缓</a>"
+        "<a href='/jsxw/index_2.html'>下一页</a>"  # nav link, too short, dropped
+        "</body></html>"
+    ).encode("utf-8")
+    monkeypatch.setattr(ratelimit.requests, "get", lambda *a, **k: FakeResponse(html))
+
+    source = {
+        "id": "china_energy_news",
+        "type": "scrape",
+        "item_type": "article",
+        "scrape_config": {
+            "base_url": "https://www.cnenergynews.cn/",
+            "list_url": "https://www.cnenergynews.cn/jsxw",
+            "list_selector": "a[href*='.html']",
+            "title_selector": None,
+            "link_selector": None,
+            "min_title_len": 8,
+        },
+    }
+    items = GenericSelectorScraper().fetch(source, settings)
+
+    assert len(items) == 1
+    assert items[0].title_zh == "能源央企上半年投资数据揭示转型放缓"
+    assert items[0].url == "https://www.cnenergynews.cn/jsxw/2026-07/05/article_one.html"
+
+
 def test_tophub_scraper_raises_when_page_structure_changed(monkeypatch, settings):
     monkeypatch.setattr(ratelimit.requests, "get", lambda *a, **k: FakeResponse(b"<html><body>nothing here</body></html>"))
 

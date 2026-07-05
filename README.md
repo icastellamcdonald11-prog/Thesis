@@ -15,9 +15,12 @@ recurring-theme clusters. See `CLAUDE.md` for the full product brief and rationa
   hot-search JSON endpoint.
 - **36kr** was switched to its native RSS feed (`https://36kr.com/feed`), removing
   the RSSHub dependency.
-- **china_energy_news** is disabled: the guessed listing URL 404s. Find the real
-  news-section URL on cnenergynews.cn in a browser, update `scrape_config` in
-  `sources.yaml`, and re-enable.
+- **china_energy_news** re-enabled with the human-verified listing URL
+  (`/jsxw`) and a broad link-pattern selector; tighten the selector once the
+  page DOM can be inspected.
+- **tophub** now filters to a platform allowlist (news/finance/tech platforms
+  only — see `platforms:` in `sources.yaml`) so entertainment hot lists don't
+  consume the triage budget.
 
 ## Status: scaffolded, partially field-verified
 

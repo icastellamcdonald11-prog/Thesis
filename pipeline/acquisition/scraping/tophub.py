@@ -48,10 +48,16 @@ class TophubScraper(Adapter):
                 "page structure likely changed, needs re-checking against the live DOM"
             )
 
+        # Optional platform allowlist (substring match against the card heading),
+        # so gaming/entertainment hot lists don't eat the triage budget.
+        platforms = source.get("platforms")
+
         items = []
         for card in cards:
             title_el = card.select_one(CARD_TITLE_SELECTOR)
             platform = title_el.get_text(strip=True) if title_el else "unknown"
+            if platforms and not any(p in platform for p in platforms):
+                continue
             for entry in card.select(ENTRY_SELECTOR):
                 title = entry.get_text(strip=True)
                 href = entry.get("href")

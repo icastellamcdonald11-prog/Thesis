@@ -47,6 +47,9 @@ class GenericSelectorScraper(Adapter):
             )
 
         item_type = source.get("item_type", "article")
+        # min_title_len filters out nav/pagination anchors when list_selector is a
+        # broad pattern like "a[href*='.html']" rather than a tight list-row selector.
+        min_title_len = sc.get("min_title_len", 0)
         items = []
         for row in rows:
             title_el = row.select_one(sc["title_selector"]) if sc.get("title_selector") else row
@@ -55,7 +58,7 @@ class GenericSelectorScraper(Adapter):
                 continue
             title = title_el.get_text(strip=True)
             href = link_el.get(sc.get("link_attr", "href"))
-            if not title or not href:
+            if not title or not href or len(title) < min_title_len:
                 continue
             url = urljoin(sc.get("base_url", sc["list_url"]), href)
 
