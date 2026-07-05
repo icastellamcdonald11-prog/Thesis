@@ -55,15 +55,26 @@ sources:
 
   - id: jiemian
     name: 界面新闻
-    type: rsshub
-    # /jiemian/list/4 returns 503 on every RSSHub instance (route dead server-side,
-    # confirmed 2026-07-05 — the same mirrors serve yicai/thepaper fine). Switched
-    # to the newsflash route; if this also 503s, next step is a direct scraper.
-    route: /jiemian/newsflash
+    type: scrape
+    # Both /jiemian/list/4 and /jiemian/newsflash 503 on every RSSHub instance
+    # (confirmed 2026-07-05; the same mirrors serve yicai/thepaper fine), so the
+    # whole jiemian namespace is broken on RSSHub — scraping the site directly.
+    # Jiemian article URLs look like /article/NNNNNNN.html; if this selector
+    # matches nothing the run log dumps the anchors actually on the page.
+    route: generic
     category: business
     item_type: article
     enabled: true
     weight: 1.0
+    scrape_config:
+      base_url: "https://www.jiemian.com/"
+      list_url: "https://www.jiemian.com/lists/4.html"
+      list_selector: "a[href*='/article/']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
 
   - id: yicai
     name: 第一财经
@@ -98,11 +109,12 @@ sources:
     route: generic
     category: energy
     item_type: article
-    # Re-enabled 2026-07-05 with the /jsxw listing URL (human-verified in a browser).
-    # Selector is a deliberately broad "any article-looking link" pattern with a
-    # minimum title length to drop nav/pagination anchors — tighten it to the real
-    # list-row selector once we can inspect the page DOM.
-    enabled: true
+    # DISABLED 2026-07-05 (second attempt): /jsxw fetches fine but the raw HTML
+    # contains only section-nav anchors — the article list is JS-rendered. Fixing
+    # this needs either (a) a Playwright-rendered fetch, or (b) the underlying
+    # JSON/XHR endpoint the page calls (find it in browser devtools > Network tab).
+    # Parked pending that decision; energy stories still arrive via other sources.
+    enabled: false
     weight: 1.0
     scrape_config:
       base_url: "https://www.cnenergynews.cn/"
