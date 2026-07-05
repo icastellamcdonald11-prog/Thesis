@@ -41,9 +41,18 @@ class GenericSelectorScraper(Adapter):
         soup = BeautifulSoup(resp.text, "html.parser")
         rows = soup.select(sc["list_selector"])
         if not rows:
+            # Dump a sample of what IS on the page so the failure log is enough to
+            # fix the selector without needing browser access to the site.
+            sample = []
+            for a in soup.find_all("a", href=True):
+                href = a["href"]
+                if href not in sample and not href.startswith(("javascript:", "#")):
+                    sample.append(href)
+                if len(sample) >= 15:
+                    break
             raise AdapterError(
                 f"{source['id']}: selector '{sc['list_selector']}' matched nothing at "
-                f"{sc['list_url']} — page structure likely changed, needs re-checking"
+                f"{sc['list_url']} — sample of anchors actually on the page: {sample}"
             )
 
         item_type = source.get("item_type", "article")
