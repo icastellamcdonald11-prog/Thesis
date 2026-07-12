@@ -35,7 +35,7 @@ class Settings:
     acquisition: dict
     triage: dict
     cluster: dict
-    diffcheck: dict
+    coverage: dict
     digest: dict
     email: EmailConfig
     db_path: Path
@@ -70,7 +70,7 @@ class Settings:
             acquisition=raw.get("acquisition", {}),
             triage=raw.get("triage", {}),
             cluster=raw.get("cluster", {}),
-            diffcheck=raw.get("diffcheck", {}),
+            coverage=raw.get("coverage", {}),
             digest=raw.get("digest", {}),
             email=email,
             db_path=REPO_ROOT / storage.get("db_path", "data/pitch_discovery.db"),

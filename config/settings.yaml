@@ -32,10 +32,16 @@ cluster:
   window_days: 7
   min_sources: 3
 
-diffcheck:
-  model: "claude-sonnet-5"
+# Stage 3 — coverage scan: web search + headline translation only, no analysis.
+# Haiku instead of Sonnet (~3x cheaper per token) and 3 searches per item
+# instead of 6 (web_search bills ~$0.01/search on top of tokens). Worst case at
+# the default cap: 15 items x 3 searches = $0.45 in searches plus a few cents
+# of Haiku tokens — comfortably under the $1/day target.
+coverage:
+  model: "claude-haiku-4-5"
   daily_cap: 15
-  max_tokens: 2048
+  max_tokens: 1024
+  max_searches: 3
 
 digest:
   output_dir: "digests"

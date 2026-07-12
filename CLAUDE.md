@@ -46,21 +46,23 @@ Discard anything scoring below a configurable threshold (default: total ≥ 4 an
 
 Also run cluster detection here: embed or keyword-tag surviving items, compare against the last 7 days, flag recurring themes.
 
-### Stage 3 — Differentiation check (Claude Sonnet via Anthropic API, web search tool enabled)
+### Stage 3 — Coverage scan (Claude Haiku via Anthropic API, web search tool enabled)
 
-For each survivor (cap at ~15/day to control cost):
+Redesigned 2026-07-12: the original Sonnet "differentiation check" produced analysis (verdicts, pitch angles, confidence ratings) that was expensive and often wrong. Stage 3 is now search + headline-grabbing + translation only — the journalist does the judging.
 
-1. Generate 2–3 English search phrases from the Chinese headline (entity names in both pinyin and English where known).
-2. Search coverage in this order and record findings: `site:ft.com` → Reuters/Bloomberg/WSJ → SCMP/Caixin Global.
-3. Output a structured verdict: `ft_covered` (yes/no/partially + link), `competitor_coverage`, `local_english_coverage`, `pitch_angle` (one sentence, in English, framed as an FT pitch), `confidence`.
+For each survivor (cap at ~15/day, ~3 searches/item to control cost):
 
-Items where `ft_covered = yes` are dropped from the digest but logged.
+1. Translate the Chinese headline faithfully into English, plus a 1–2 sentence summary.
+2. Generate 2–3 English search phrases (entity names in both pinyin and English where known) and search in this order: `site:ft.com` → Reuters/Bloomberg/WSJ → SCMP/Caixin Global.
+3. Report raw findings only: a list of `{outlet, headline, url}` for every relevant article found. No verdicts, no pitch angle, no confidence rating.
+
+Whether FT already covered a story is decided mechanically in code (any reported URL on ft.com), not by model judgment. Those items are dropped from the digest but logged.
 
 ## Output
 
 Daily digest as email (SMTP, config-driven) and a markdown file in `digests/YYYY-MM-DD.md`.
 
-Each candidate: English pitch angle, Chinese headline + link, source, what coverage exists, why it survived triage. Clusters get their own section.
+Each candidate: translated English headline + summary, Chinese headline + link, source, what English coverage exists (raw headlines and links), why it survived triage. Clusters get their own section.
 
 Keep a `feedback.csv` where I can mark candidates pitched/ignored — future tuning data, no ML needed yet.
 
@@ -133,7 +135,7 @@ Ask me before making product decisions (thresholds, digest format, cost trade-of
 
 - Python 3.11+, keep dependencies minimal (requests, beautifulsoup4, feedparser, pyyaml, anthropic; playwright only if genuinely needed).
 - Anthropic API key via environment variable / GitHub Actions secret — never in the repo.
-- Daily LLM spend target: under $1/day at steady state (Haiku for volume, Sonnet capped at 15 calls).
+- Daily LLM spend target: under $1/day at steady state (Haiku everywhere; Stage 3 capped at 15 items and 3 web searches each — web_search bills ~$0.01/search on top of tokens).
 - Respect robots.txt for scrapers; if a site blocks automated access, mark the source `enabled: false` with a comment and tell me — I'll handle those manually.
 - All code comments and digest output in English; never pre-translate source text before triage (Claude reads Chinese natively; translation loses signal).
 

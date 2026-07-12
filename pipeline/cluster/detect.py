@@ -1,6 +1,6 @@
 """Flags themes (tags) appearing across >= min_sources distinct sources within a
 rolling window, even if no single story in the cluster individually qualifies.
-Runs as part of Stage 2 (triage) since it only needs triage tags, not diffcheck."""
+Runs as part of Stage 2 (triage) since it only needs triage tags, not the coverage scan."""
 from __future__ import annotations
 
 import json

@@ -21,8 +21,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from pipeline.acquisition.run import run as run_acquisition
+from pipeline.coverage.run import run as run_coverage
 from pipeline.digest.run import run as run_digest
-from pipeline.diffcheck.run import run as run_diffcheck
 from pipeline.logging_setup import setup_logging
 from pipeline.triage.run import run as run_triage
 
@@ -48,11 +48,11 @@ def main() -> None:
     except Exception:
         logger.exception("Stage 2 (triage) crashed; continuing with existing backlog")
 
-    print("=== Stage 3: differentiation check ===")
+    print("=== Stage 3: coverage scan ===")
     try:
-        print(run_diffcheck(dry_run=args.dry_run))
+        print(run_coverage(dry_run=args.dry_run))
     except Exception:
-        logger.exception("Stage 3 (diffcheck) crashed; continuing with existing backlog")
+        logger.exception("Stage 3 (coverage) crashed; continuing with existing backlog")
 
     print("=== Stage 4: digest ===")
     try:

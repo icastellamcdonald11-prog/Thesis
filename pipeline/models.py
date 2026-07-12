@@ -46,12 +46,33 @@ class TriageScore:
         return self.total >= threshold_total and self.in_niche >= threshold_in_niche
 
 
+def _hostname(url: str) -> str:
+    from urllib.parse import urlparse
+
+    return (urlparse(url).hostname or "").lower()
+
+
 @dataclass
-class DiffVerdict:
+class CoverageReport:
+    """Stage 3 output: faithful translation + raw web-search findings.
+
+    Deliberately contains no model judgement (no pitch angle, no verdicts,
+    no confidence) — the journalist assesses; the model only searches,
+    grabs headlines, and translates.
+    """
+
     item_id: str
-    ft_covered: str  # "yes" | "no" | "partially"
-    ft_link: str | None
-    competitor_coverage: list[dict]
-    local_english_coverage: list[dict]
-    pitch_angle: str
-    confidence: str  # "low" | "medium" | "high"
+    headline_en: str  # faithful English translation of title_zh
+    summary_en: str  # 1-2 sentence English summary of the Chinese text
+    queries: list[str] = field(default_factory=list)  # search phrases used
+    hits: list[dict] = field(default_factory=list)  # {outlet, headline, url}
+
+    @property
+    def ft_url(self) -> str | None:
+        """First hit on ft.com, derived mechanically from the links found —
+        this is what drops an item from the digest, not a model verdict."""
+        for hit in self.hits:
+            host = _hostname(str(hit.get("url") or ""))
+            if host == "ft.com" or host.endswith(".ft.com"):
+                return hit["url"]
+        return None

@@ -44,6 +44,31 @@ real API key, ideally by you:
    trusting the threshold defaults.
 3. **Run Stage 3 on a small sample** (`--limit 5`) to check cost and search
    quality before raising the daily cap.
+
+## Stage 3 redesign (2026-07-12): analysis out, search + translation in
+
+Stage 3 was originally a Sonnet "differentiation check" that produced verdicts
+(`ft_covered` yes/no, per-outlet coverage judgments, a pitch angle, a confidence
+rating). In practice the analysis was the least useful part — often wrong, and
+the most expensive line item. It has been replaced with a **coverage scan**
+(`pipeline/coverage/`) that only does what the API is reliably good at:
+
+- **Translate** the Chinese headline faithfully (plus a 1–2 sentence summary).
+- **Search** for existing English coverage (site:ft.com first, then
+  Reuters/Bloomberg/WSJ/NYT/Economist, then SCMP/Caixin), capped at
+  `coverage.max_searches` per item.
+- **Grab headlines**: report each relevant article found as raw
+  `{outlet, headline, url}` — no verdicts, no pitch angles, no confidence.
+
+Whether FT already covered a story is now decided *mechanically in code* (any
+hit whose URL is on ft.com — see `CoverageReport.ft_url`), not by model
+judgment. Cost: Haiku instead of Sonnet (~3x cheaper per token; search results
+are billed as input tokens, so this matters) and 3 searches instead of 6
+(hosted web_search bills ~$0.01/search). Worst case at the default 15-item cap:
+~$0.45 of searches + a few cents of tokens per day.
+
+The old `diffcheck` table is retained read-only in existing databases; items it
+already processed are excluded from the new scan so nothing is re-billed.
 4. Only then turn on the GitHub Actions cron for real.
 
 Everything downstream of "does the JSON parse and does the SQL do the right
@@ -66,7 +91,7 @@ Each stage is a standalone CLI plus an orchestrator:
 ```bash
 python -m pipeline.acquisition.run [--dry-run] [--source SOURCE_ID]
 python -m pipeline.triage.run [--limit N] [--dry-run]
-python -m pipeline.diffcheck.run [--limit N] [--dry-run]
+python -m pipeline.coverage.run [--limit N] [--dry-run]
 python -m pipeline.digest.run [--no-email]
 
 python scripts/run_all.py [--dry-run]   # runs all four in order
@@ -104,10 +129,10 @@ pipeline/
   acquisition/   Stage 1 — rsshub / rss / scrape adapters, dedupe, rate limiting
   triage/        Stage 2 — Haiku batch scoring against the pitch-criteria prompt
   cluster/       cross-story theme detection (runs as part of Stage 2)
-  diffcheck/     Stage 3 — Sonnet + hosted web_search differentiation check
+  coverage/      Stage 3 — Haiku + hosted web_search: translate headline, find existing coverage
   digest/        Stage 4 — markdown render, email send, feedback.csv logging
   db.py          SQLite schema + all queries
-  models.py      RawItem / TriageScore / DiffVerdict dataclasses
+  models.py      RawItem / TriageScore / CoverageReport dataclasses
   config.py      sources.yaml + config/settings.yaml + env loader
 scripts/
   run_all.py         orchestrates all four stages
@@ -126,10 +151,10 @@ digest, exercising the full pipeline wiring end to end.
 pytest
 ```
 
-22 tests, no network or API key required: adapters run against fixture RSS/HTML
-in `tests/fixtures/`, Haiku/Sonnet response parsing is tested against a fake
-Anthropic client, and dedupe/cluster/digest logic run against real (temp-file)
-SQLite databases.
+32 tests, no network or API key required: adapters run against fixture RSS/HTML
+in `tests/fixtures/`, Haiku response parsing (triage and coverage scan) is
+tested against a fake Anthropic client, and dedupe/cluster/digest logic run
+against real (temp-file) SQLite databases.
 
 ## GitHub Actions
 

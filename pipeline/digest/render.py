@@ -4,22 +4,21 @@ import json
 import sqlite3
 
 
-def _coverage_line(entries_json: str) -> str:
+def _coverage_lines(hits_json: str) -> str:
+    """One sub-bullet per English-language article the coverage scan found."""
     try:
-        entries = json.loads(entries_json)
+        hits = json.loads(hits_json)
     except (TypeError, json.JSONDecodeError):
-        return "unknown"
-    if not entries:
-        return "none checked"
-    parts = []
-    for e in entries:
-        outlet = e.get("outlet", "?")
-        if e.get("covered"):
-            link = e.get("link")
-            parts.append(f"{outlet}: yes ({link})" if link else f"{outlet}: yes")
-        else:
-            parts.append(f"{outlet}: no")
-    return "; ".join(parts)
+        hits = []
+    if not hits:
+        return "- **Existing English coverage:** none found\n"
+    lines = ["- **Existing English coverage:**\n"]
+    for h in hits:
+        outlet = h.get("outlet") or "?"
+        headline = h.get("headline") or "(no headline)"
+        url = h.get("url") or ""
+        lines.append(f"  - {outlet}: [{headline}]({url})\n" if url else f"  - {outlet}: {headline}\n")
+    return "".join(lines)
 
 
 def _render_candidate(row: sqlite3.Row) -> str:
@@ -28,19 +27,13 @@ def _render_candidate(row: sqlite3.Row) -> str:
     except (TypeError, json.JSONDecodeError):
         tags = []
 
-    ft_line = row["ft_covered"]
-    if row["ft_link"]:
-        ft_line += f" ({row['ft_link']})"
-
     return (
-        f"### {row['pitch_angle'] or row['gist_en']}\n\n"
+        f"### {row['headline_en'] or row['gist_en']}\n\n"
         f"- **Chinese headline:** {row['title_zh']} — [{row['url']}]({row['url']})\n"
         f"- **Source:** {row['source_id']}\n"
+        f"- **What it says:** {row['summary_en'] or row['gist_en']}\n"
         f"- **Triage:** total={row['total']}, tags: {', '.join(tags) if tags else 'none'}\n"
-        f"- **FT coverage:** {ft_line}\n"
-        f"- **Competitor coverage (Reuters/Bloomberg/WSJ/NYT/Economist):** {_coverage_line(row['competitor_coverage'])}\n"
-        f"- **Local English coverage (SCMP/Caixin):** {_coverage_line(row['local_english_coverage'])}\n"
-        f"- **Confidence:** {row['confidence']}\n"
+        f"{_coverage_lines(row['hits'])}"
     )
 
 
@@ -72,12 +65,12 @@ def render_markdown(
     elif len(candidates) > max_candidates:
         lines.append(
             f"_{len(candidates)} candidates survived; showing top {max_candidates} by "
-            f"confidence and triage score. The rest were logged but omitted._\n"
+            f"triage score. The rest were logged but omitted._\n"
         )
 
     lines.append("## Candidates\n")
     if not candidates:
-        lines.append("No candidates cleared triage and differentiation-check today.\n")
+        lines.append("No candidates cleared triage and the coverage scan today.\n")
     else:
         for row in candidates[:max_candidates]:
             lines.append(_render_candidate(row))

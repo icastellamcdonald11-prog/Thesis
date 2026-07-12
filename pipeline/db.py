@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from pipeline.models import RawItem, TriageScore, DiffVerdict
+from pipeline.models import CoverageReport, RawItem, TriageScore
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS items (
@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS triage (
     triaged_at TEXT NOT NULL
 );
 
+-- Legacy Stage 3 (Sonnet differentiation verdicts). No longer written; the
+-- table is kept so existing databases retain their history and items already
+-- checked under the old scheme are never re-billed.
 CREATE TABLE IF NOT EXISTS diffcheck (
     item_id TEXT PRIMARY KEY REFERENCES items(id),
     ft_covered TEXT NOT NULL,
@@ -44,6 +47,16 @@ CREATE TABLE IF NOT EXISTS diffcheck (
     local_english_coverage TEXT NOT NULL DEFAULT '[]',
     pitch_angle TEXT NOT NULL,
     confidence TEXT NOT NULL,
+    checked_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS coverage (
+    item_id TEXT PRIMARY KEY REFERENCES items(id),
+    headline_en TEXT NOT NULL,
+    summary_en TEXT NOT NULL,
+    queries TEXT NOT NULL DEFAULT '[]',
+    hits TEXT NOT NULL DEFAULT '[]',
+    ft_url TEXT,
     checked_at TEXT NOT NULL
 );
 
@@ -148,54 +161,54 @@ def save_triage(conn: sqlite3.Connection, score: TriageScore, threshold_total: i
     )
 
 
-def triage_survivors_pending_diffcheck(conn: sqlite3.Connection, limit: int | None = None) -> list[sqlite3.Row]:
+def triage_survivors_pending_coverage(conn: sqlite3.Connection, limit: int | None = None) -> list[sqlite3.Row]:
+    """Survivors not yet coverage-scanned. Items handled by the legacy diffcheck
+    stage are excluded too, so switching schemes doesn't re-bill old items."""
     query = """SELECT i.*, t.total, t.gist_en, t.tags FROM items i
                JOIN triage t ON t.item_id = i.id
+               LEFT JOIN coverage c ON c.item_id = i.id
                LEFT JOIN diffcheck d ON d.item_id = i.id
-               WHERE t.survived = 1 AND d.item_id IS NULL
+               WHERE t.survived = 1 AND c.item_id IS NULL AND d.item_id IS NULL
                ORDER BY t.total DESC, i.fetched_at ASC"""
     if limit:
         query += f" LIMIT {int(limit)}"
     return conn.execute(query).fetchall()
 
 
-def diffcheck_count_today(conn: sqlite3.Connection) -> int:
+def coverage_count_today(conn: sqlite3.Connection) -> int:
     row = conn.execute(
-        "SELECT COUNT(*) AS c FROM diffcheck WHERE date(checked_at) = date('now')"
+        "SELECT COUNT(*) AS c FROM coverage WHERE date(checked_at) = date('now')"
     ).fetchone()
     return row["c"]
 
 
-def save_diffcheck(conn: sqlite3.Connection, verdict: DiffVerdict) -> None:
+def save_coverage(conn: sqlite3.Connection, report: CoverageReport) -> None:
     conn.execute(
-        """INSERT OR REPLACE INTO diffcheck
-           (item_id, ft_covered, ft_link, competitor_coverage, local_english_coverage,
-            pitch_angle, confidence, checked_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        """INSERT OR REPLACE INTO coverage
+           (item_id, headline_en, summary_en, queries, hits, ft_url, checked_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
         (
-            verdict.item_id,
-            verdict.ft_covered,
-            verdict.ft_link,
-            json.dumps(verdict.competitor_coverage, ensure_ascii=False),
-            json.dumps(verdict.local_english_coverage, ensure_ascii=False),
-            verdict.pitch_angle,
-            verdict.confidence,
+            report.item_id,
+            report.headline_en,
+            report.summary_en,
+            json.dumps(report.queries, ensure_ascii=False),
+            json.dumps(report.hits, ensure_ascii=False),
+            report.ft_url,
             now_iso(),
         ),
     )
 
 
 def digest_candidates(conn: sqlite3.Connection, max_candidates: int) -> list[sqlite3.Row]:
-    """Diff-checked survivors not yet FT-covered and not already sent in a prior digest."""
+    """Coverage-scanned survivors with no FT hit and not already sent in a prior digest."""
     query = """SELECT i.*, t.total, t.gist_en, t.tags,
-                      d.ft_covered, d.ft_link, d.competitor_coverage,
-                      d.local_english_coverage, d.pitch_angle, d.confidence
+                      c.headline_en, c.summary_en, c.hits
                FROM items i
                JOIN triage t ON t.item_id = i.id
-               JOIN diffcheck d ON d.item_id = i.id
+               JOIN coverage c ON c.item_id = i.id
                LEFT JOIN digest_log g ON g.item_id = i.id
-               WHERE d.ft_covered != 'yes' AND g.item_id IS NULL
-               ORDER BY d.confidence DESC, t.total DESC
+               WHERE c.ft_url IS NULL AND g.item_id IS NULL
+               ORDER BY t.total DESC, i.fetched_at ASC
                LIMIT ?"""
     return conn.execute(query, (max_candidates,)).fetchall()
 
