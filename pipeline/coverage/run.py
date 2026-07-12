@@ -27,6 +27,7 @@ from pipeline.db import (
     get_connection,
     init_db,
     save_coverage,
+    searches_used_today,
     triage_survivors_pending_coverage,
 )
 from pipeline.logging_setup import setup_logging
@@ -51,16 +52,17 @@ def run(limit: int | None = None, dry_run: bool = False) -> dict[str, int]:
         )
 
         if dry_run or not pending:
-            return {"pending": len(pending), "scanned": 0, "ft_covered": 0}
+            return {"pending": len(pending), "scanned": 0, "ft_covered": 0, "searches": 0}
 
         problem = api_key_problem(settings.anthropic_api_key)
         if problem:
             logger.error("Cannot run coverage scan: %s", problem)
-            return {"pending": len(pending), "scanned": 0, "ft_covered": 0}
+            return {"pending": len(pending), "scanned": 0, "ft_covered": 0, "searches": 0}
 
         client = Anthropic(api_key=settings.anthropic_api_key)
         scanned = 0
         ft_covered_count = 0
+        searches = 0
         for row in pending:
             item = {
                 "id": row["id"],
@@ -83,11 +85,17 @@ def run(limit: int | None = None, dry_run: bool = False) -> dict[str, int]:
 
             save_coverage(conn, report)
             scanned += 1
+            searches += report.searches_used
             if report.ft_url:
                 ft_covered_count += 1
                 logger.info("Item %s already covered by FT (%s) — dropped from digest", row["id"], report.ft_url)
 
-        return {"pending": len(pending), "scanned": scanned, "ft_covered": ft_covered_count}
+        total_today = searches_used_today(conn)
+        logger.info(
+            "Web searches this run: %d (total today: %d, ~$%.2f in search fees)",
+            searches, total_today, total_today * 0.01,
+        )
+        return {"pending": len(pending), "scanned": scanned, "ft_covered": ft_covered_count, "searches": searches}
 
 
 def main() -> None:

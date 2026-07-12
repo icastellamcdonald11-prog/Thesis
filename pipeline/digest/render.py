@@ -48,12 +48,31 @@ def _render_cluster(row: sqlite3.Row) -> str:
     )
 
 
+def _render_official_section(official_items: list[sqlite3.Row], source_names: dict[str, str]) -> list[str]:
+    lines = ["## New from ministries & think tanks (last 24h)\n"]
+    if not official_items:
+        lines.append("Nothing new picked up from the monitored official sources today.\n")
+        return lines
+    by_source: dict[str, list[sqlite3.Row]] = {}
+    for row in official_items:
+        by_source.setdefault(row["source_id"], []).append(row)
+    for source_id, rows in by_source.items():
+        lines.append(f"### {source_names.get(source_id, source_id)}\n")
+        for row in rows:
+            gist = f" — {row['gist_en']}" if row["gist_en"] else ""
+            lines.append(f"- [{row['title_zh']}]({row['url']}){gist}")
+        lines.append("")
+    return lines
+
+
 def render_markdown(
     digest_date: str,
     candidates: list[sqlite3.Row],
     clusters: list[sqlite3.Row],
     min_candidates: int,
     max_candidates: int,
+    official_items: list[sqlite3.Row] | None = None,
+    source_names: dict[str, str] | None = None,
 ) -> str:
     lines = [f"# FT China Pitch Digest — {digest_date}\n"]
 
@@ -81,5 +100,10 @@ def render_markdown(
     else:
         for row in clusters:
             lines.append(_render_cluster(row))
+
+    # Only rendered when ministry/thinktank sources are configured (run.py
+    # passes None otherwise).
+    if official_items is not None:
+        lines.extend(_render_official_section(official_items, source_names or {}))
 
     return "\n".join(lines)

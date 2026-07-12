@@ -47,6 +47,8 @@ digest:
   output_dir: "digests"
   min_candidates: 5
   max_candidates: 10
+  # Trailing window for the "New from ministries & think tanks" section.
+  official_window_hours: 24
 
 email:
   smtp_host: "smtp.gmail.com"

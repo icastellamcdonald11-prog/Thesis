@@ -76,6 +76,39 @@ def test_render_markdown_no_coverage_found(db_path):
     assert "none found" in markdown
 
 
+def test_render_markdown_official_section(db_path):
+    with get_connection(db_path) as conn:
+        init_db(conn)
+        item = RawItem(source_id="ndrc", url="https://ndrc.gov.cn/x", title_zh="关于完善新能源上网电价的通知")
+        insert_item(conn, item)
+        # Not triaged (no gist) — must still appear in the what's-new feed.
+
+        from pipeline.db import official_items_in_window
+
+        official = official_items_in_window(conn, ["ndrc", "mof"], window_hours=24)
+        markdown = render_markdown(
+            "2026-07-12", [], [], min_candidates=5, max_candidates=10,
+            official_items=official, source_names={"ndrc": "国家发改委 (NDRC)"},
+        )
+
+    assert "New from ministries & think tanks" in markdown
+    assert "国家发改委 (NDRC)" in markdown
+    assert "关于完善新能源上网电价的通知" in markdown
+
+
+def test_official_section_empty_and_omitted_states(db_path):
+    with get_connection(db_path) as conn:
+        init_db(conn)
+        with_section = render_markdown(
+            "2026-07-12", [], [], min_candidates=5, max_candidates=10,
+            official_items=[], source_names={},
+        )
+        without_section = render_markdown("2026-07-12", [], [], min_candidates=5, max_candidates=10)
+
+    assert "Nothing new picked up from the monitored official sources" in with_section
+    assert "New from ministries & think tanks" not in without_section
+
+
 def test_render_markdown_empty_state(db_path):
     with get_connection(db_path) as conn:
         init_db(conn)

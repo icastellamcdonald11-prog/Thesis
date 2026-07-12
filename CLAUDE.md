@@ -64,6 +64,8 @@ Daily digest as email (SMTP, config-driven) and a markdown file in `digests/YYYY
 
 Each candidate: translated English headline + summary, Chinese headline + link, source, what English coverage exists (raw headlines and links), why it survived triage. Clusters get their own section.
 
+The digest also carries a "New from ministries & think tanks" section: everything published in the last 24h by the monitored official sources (`category: ministry | thinktank` in sources.yaml — State Council, NDRC, MOF, PBOC, MOFCOM, NBS, MIIT, NEA, DRC, CASS, CF40), listed regardless of triage score. These are scraped in Stage 1, so monitoring them costs no API spend.
+
 Keep a `feedback.csv` where I can mark candidates pitched/ignored — future tuning data, no ML needed yet.
 
 ## sources.yaml schema

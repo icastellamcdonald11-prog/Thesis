@@ -66,6 +66,7 @@ class CoverageReport:
     summary_en: str  # 1-2 sentence English summary of the Chinese text
     queries: list[str] = field(default_factory=list)  # search phrases used
     hits: list[dict] = field(default_factory=list)  # {outlet, headline, url}
+    searches_used: int = 0  # actual web_search invocations billed (~$0.01 each)
 
     @property
     def ft_url(self) -> str | None:

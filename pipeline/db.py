@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS coverage (
     queries TEXT NOT NULL DEFAULT '[]',
     hits TEXT NOT NULL DEFAULT '[]',
     ft_url TEXT,
+    searches_used INTEGER NOT NULL DEFAULT 0,
     checked_at TEXT NOT NULL
 );
 
@@ -185,8 +186,8 @@ def coverage_count_today(conn: sqlite3.Connection) -> int:
 def save_coverage(conn: sqlite3.Connection, report: CoverageReport) -> None:
     conn.execute(
         """INSERT OR REPLACE INTO coverage
-           (item_id, headline_en, summary_en, queries, hits, ft_url, checked_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+           (item_id, headline_en, summary_en, queries, hits, ft_url, searches_used, checked_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             report.item_id,
             report.headline_en,
@@ -194,9 +195,17 @@ def save_coverage(conn: sqlite3.Connection, report: CoverageReport) -> None:
             json.dumps(report.queries, ensure_ascii=False),
             json.dumps(report.hits, ensure_ascii=False),
             report.ft_url,
+            report.searches_used,
             now_iso(),
         ),
     )
+
+
+def searches_used_today(conn: sqlite3.Connection) -> int:
+    row = conn.execute(
+        "SELECT COALESCE(SUM(searches_used), 0) AS s FROM coverage WHERE date(checked_at) = date('now')"
+    ).fetchone()
+    return row["s"]
 
 
 def digest_candidates(conn: sqlite3.Connection, max_candidates: int) -> list[sqlite3.Row]:
@@ -218,6 +227,22 @@ def mark_digested(conn: sqlite3.Connection, item_ids: list[str], digest_date: st
         "INSERT OR IGNORE INTO digest_log (item_id, digest_date) VALUES (?, ?)",
         [(item_id, digest_date) for item_id in item_ids],
     )
+
+
+def official_items_in_window(
+    conn: sqlite3.Connection, source_ids: list[str], window_hours: int = 24
+) -> list[sqlite3.Row]:
+    """Everything fetched from ministry/think-tank sources in the trailing window,
+    regardless of triage outcome — the digest lists these as a what's-new feed."""
+    if not source_ids:
+        return []
+    placeholders = ",".join("?" for _ in source_ids)
+    query = f"""SELECT i.*, t.gist_en FROM items i
+                LEFT JOIN triage t ON t.item_id = i.id
+                WHERE i.source_id IN ({placeholders})
+                  AND i.fetched_at >= datetime('now', ?)
+                ORDER BY i.source_id, i.fetched_at DESC"""
+    return conn.execute(query, (*source_ids, f"-{window_hours} hours")).fetchall()
 
 
 def survived_items_in_window(conn: sqlite3.Connection, window_days: int) -> list[sqlite3.Row]:

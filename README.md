@@ -69,6 +69,30 @@ are billed as input tokens, so this matters) and 3 searches instead of 6
 
 The old `diffcheck` table is retained read-only in existing databases; items it
 already processed are excluded from the new scan so nothing is re-billed.
+
+Actual search usage is now counted (one `server_tool_use` block = one billed
+search) and stored per item in `coverage.searches_used`; every Stage 3 run logs
+the day's running total and approximate search fees.
+
+## Ministry & think-tank monitor (added 2026-07-12)
+
+`sources.yaml` now includes ~11 scraped sources with `category: ministry`
+(State Council, NDRC, MOF, PBOC, MOFCOM, NBS, MIIT, NEA) or
+`category: thinktank` (DRC, CASS, CF40). They cost nothing to monitor (Stage 1
+scraping, no API calls) and are handled two ways:
+
+- Everything they published in the last 24h appears in a dedicated
+  **"New from ministries & think tanks"** digest section, regardless of triage
+  score — a what's-new feed, not a filter.
+- They also flow through normal triage, so a major policy release can still
+  become a pitch candidate with a coverage scan.
+
+**The selectors are unverified** (added from a sandbox with no internet
+egress). On the first live run, check the Stage 1 log: any source whose
+selector matched nothing dumps a sample of the anchors actually on the page —
+fix `list_selector` in `sources.yaml` from that, no code changes needed. Some
+gov.cn properties may 403 GitHub's datacenter IPs (as rsshub.app does); disable
+those with a comment rather than fighting them.
 4. Only then turn on the GitHub Actions cron for real.
 
 Everything downstream of "does the JSON parse and does the SQL do the right

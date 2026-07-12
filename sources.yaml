@@ -103,6 +103,199 @@ sources:
     enabled: true
     weight: 1.0
 
+  # ---------------------------------------------------------------------------
+  # Ministries, regulators, and think tanks (category: ministry | thinktank).
+  # These feed a dedicated "New from ministries & think tanks" digest section
+  # (anything fetched in the last 24h, regardless of triage score) AND flow
+  # through normal triage, so a big policy release can also become a pitch
+  # candidate. All scraped — zero API cost to monitor.
+  #
+  # SELECTORS UNVERIFIED (added 2026-07-12 from a sandbox with no internet
+  # egress, same caveat as the original scaffold). Gov-site CMSes mostly use
+  # ./YYYYMM/tYYYYMMDD_NNNN.html or /art/YYYY/art_NNN.html link patterns; if a
+  # selector matches nothing, the run log dumps the anchors actually on the
+  # page — fix the selector from that. Some gov.cn sites also block foreign
+  # datacenter IPs (like rsshub.app did); if one 403s persistently from
+  # Actions, set enabled: false with a comment rather than fighting it.
+  # ---------------------------------------------------------------------------
+
+  - id: gov_cn_policies
+    name: 国务院最新政策 (State Council)
+    type: scrape
+    route: generic
+    category: ministry
+    item_type: article
+    enabled: true
+    weight: 1.0
+    max_items: 30
+    scrape_config:
+      base_url: "https://www.gov.cn/"
+      list_url: "https://www.gov.cn/zhengce/zuixin/"
+      list_selector: "a[href*='/zhengce/']"
+      link_attr: "href"
+      min_title_len: 10
+
+  - id: ndrc
+    name: 国家发改委 (NDRC)
+    type: scrape
+    route: generic
+    category: ministry
+    item_type: article
+    enabled: true
+    weight: 1.0
+    max_items: 30
+    scrape_config:
+      base_url: "https://www.ndrc.gov.cn/xwdt/xwfb/"
+      list_url: "https://www.ndrc.gov.cn/xwdt/xwfb/"
+      list_selector: "a[href*='t20']"
+      link_attr: "href"
+      min_title_len: 8
+
+  - id: mof
+    name: 财政部 (Ministry of Finance)
+    type: scrape
+    route: generic
+    category: ministry
+    item_type: article
+    enabled: true
+    weight: 1.0
+    max_items: 30
+    scrape_config:
+      base_url: "https://www.mof.gov.cn/zhengwuxinxi/caizhengxinwen/"
+      list_url: "https://www.mof.gov.cn/zhengwuxinxi/caizhengxinwen/"
+      list_selector: "a[href*='t20']"
+      link_attr: "href"
+      min_title_len: 8
+
+  - id: pboc
+    name: 中国人民银行 (PBOC)
+    type: scrape
+    route: generic
+    category: ministry
+    item_type: article
+    enabled: true
+    weight: 1.0
+    max_items: 30
+    scrape_config:
+      base_url: "http://www.pbc.gov.cn/"
+      # 沟通交流 > 新闻发布: article links stay under this section path.
+      list_url: "http://www.pbc.gov.cn/goutongjiaoliu/113456/113469/index.html"
+      list_selector: "a[href*='/goutongjiaoliu/113456/113469/']"
+      link_attr: "href"
+      min_title_len: 8
+
+  - id: mofcom
+    name: 商务部 (MOFCOM)
+    type: scrape
+    route: generic
+    category: ministry
+    item_type: article
+    enabled: true
+    weight: 1.0
+    max_items: 30
+    scrape_config:
+      base_url: "https://www.mofcom.gov.cn/"
+      list_url: "https://www.mofcom.gov.cn/xwfb/index.html"
+      list_selector: "a[href*='/art/']"
+      link_attr: "href"
+      min_title_len: 8
+
+  - id: stats_nbs
+    name: 国家统计局 (NBS data releases)
+    type: scrape
+    route: generic
+    category: ministry
+    item_type: article
+    enabled: true
+    weight: 1.0
+    max_items: 30
+    scrape_config:
+      base_url: "https://www.stats.gov.cn/sj/zxfb/"
+      list_url: "https://www.stats.gov.cn/sj/zxfb/"
+      list_selector: "a[href*='t20']"
+      link_attr: "href"
+      min_title_len: 8
+
+  - id: miit
+    name: 工信部 (MIIT)
+    type: scrape
+    route: generic
+    category: ministry
+    item_type: article
+    enabled: true
+    weight: 1.0
+    max_items: 30
+    scrape_config:
+      base_url: "https://www.miit.gov.cn/"
+      list_url: "https://www.miit.gov.cn/xwdt/gxdt/sjdt/index.html"
+      list_selector: "a[href*='/art/']"
+      link_attr: "href"
+      min_title_len: 8
+
+  - id: nea
+    name: 国家能源局 (National Energy Administration)
+    type: scrape
+    route: generic
+    category: ministry
+    item_type: article
+    enabled: true
+    weight: 1.0
+    max_items: 30
+    scrape_config:
+      base_url: "https://www.nea.gov.cn/"
+      list_url: "https://www.nea.gov.cn/xwzx/nyyw.htm"
+      list_selector: "a[href*='c_']"
+      link_attr: "href"
+      min_title_len: 8
+
+  - id: drc
+    name: 国务院发展研究中心 (DRC)
+    type: scrape
+    route: generic
+    category: thinktank
+    item_type: article
+    enabled: true
+    weight: 1.0
+    max_items: 20
+    scrape_config:
+      base_url: "https://www.drc.gov.cn/"
+      list_url: "https://www.drc.gov.cn/"
+      list_selector: "a[href*='DocView']"
+      link_attr: "href"
+      min_title_len: 10
+
+  - id: cass
+    name: 中国社会科学院 (CASS)
+    type: scrape
+    route: generic
+    category: thinktank
+    item_type: article
+    enabled: true
+    weight: 1.0
+    max_items: 20
+    scrape_config:
+      base_url: "http://www.cass.cn/"
+      list_url: "http://www.cass.cn/"
+      list_selector: "a[href*='.shtml']"
+      link_attr: "href"
+      min_title_len: 12
+
+  - id: cf40
+    name: 中国金融四十人论坛 (CF40)
+    type: scrape
+    route: generic
+    category: thinktank
+    item_type: article
+    enabled: true
+    weight: 1.0
+    max_items: 20
+    scrape_config:
+      base_url: "https://www.cf40.org.cn/"
+      list_url: "https://www.cf40.org.cn/news_list/"
+      list_selector: "a[href*='/news_detail/']"
+      link_attr: "href"
+      min_title_len: 10
+
   - id: china_energy_news
     name: 中国能源报
     type: scrape

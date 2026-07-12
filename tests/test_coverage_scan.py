@@ -11,16 +11,23 @@ class FakeTextBlock:
     type: str = "text"
 
 
+@dataclass
+class FakeSearchBlock:
+    type: str = "server_tool_use"
+
+
 class FakeMessages:
     def create(self, **kwargs):
         self.last_kwargs = kwargs
-        return type("FakeResponse", (), {"content": [FakeTextBlock(self._text)]})()
+        content = list(self._extra_blocks) + [FakeTextBlock(self._text)]
+        return type("FakeResponse", (), {"content": content})()
 
 
 class FakeAnthropic:
-    def __init__(self, response_text: str):
+    def __init__(self, response_text: str, extra_blocks: list | None = None):
         self.messages = FakeMessages()
         self.messages._text = response_text
+        self.messages._extra_blocks = extra_blocks or []
 
 
 REPORT = {
@@ -52,6 +59,14 @@ def test_scan_item_builds_report():
     assert len(report.hits) == 1
     assert report.hits[0]["outlet"] == "Reuters"
     assert report.ft_url is None
+
+
+def test_scan_item_counts_billed_searches():
+    client = FakeAnthropic(json.dumps(REPORT), extra_blocks=[FakeSearchBlock(), FakeSearchBlock()])
+
+    report = scan_item(client, "claude-haiku-4-5", 1024, 3, ITEM)
+
+    assert report.searches_used == 2
 
 
 def test_scan_item_passes_search_cap_to_tool():

@@ -10,8 +10,15 @@ import argparse
 import logging
 from datetime import datetime, timezone
 
-from pipeline.config import REPO_ROOT, Settings
-from pipeline.db import digest_candidates, get_connection, init_db, latest_clusters, mark_digested
+from pipeline.config import REPO_ROOT, Settings, enabled_sources
+from pipeline.db import (
+    digest_candidates,
+    get_connection,
+    init_db,
+    latest_clusters,
+    mark_digested,
+    official_items_in_window,
+)
 from pipeline.digest.email_send import send_digest_email
 from pipeline.digest.render import render_markdown
 from pipeline.feedback import append_feedback_rows
@@ -33,7 +40,23 @@ def run(send_email: bool = True) -> dict[str, int]:
         candidates = digest_candidates(conn, max_candidates)
         clusters = latest_clusters(conn, today)
 
-        markdown = render_markdown(today, candidates, clusters, min_candidates, max_candidates)
+        # Ministry/think-tank what's-new feed: everything those sources published
+        # in the trailing window, regardless of triage score.
+        official_sources = [s for s in enabled_sources() if s.get("category") in ("ministry", "thinktank")]
+        official_items = None
+        source_names = None
+        if official_sources:
+            official_items = official_items_in_window(
+                conn,
+                [s["id"] for s in official_sources],
+                window_hours=cfg.get("official_window_hours", 24),
+            )
+            source_names = {s["id"]: s.get("name", s["id"]) for s in official_sources}
+
+        markdown = render_markdown(
+            today, candidates, clusters, min_candidates, max_candidates,
+            official_items=official_items, source_names=source_names,
+        )
 
         output_dir = cfg.get("output_dir", "digests")
         out_path = REPO_ROOT / output_dir / f"{today}.md"
@@ -57,7 +80,11 @@ def run(send_email: bool = True) -> dict[str, int]:
         else:
             logger.info("--no-email passed, skipping send")
 
-        return {"candidates": len(candidates), "clusters": len(clusters)}
+        return {
+            "candidates": len(candidates),
+            "clusters": len(clusters),
+            "official_items": len(official_items or []),
+        }
 
 
 def main() -> None:

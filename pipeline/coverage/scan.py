@@ -64,6 +64,11 @@ def scan_item(
         messages=[{"role": "user", "content": user_msg}],
     )
     obj = _extract_json_object(_extract_text(response))
+    # Each server_tool_use block is one billed web search (~$0.01) — count them
+    # so daily spend is auditable from the coverage table.
+    searches_used = sum(
+        1 for block in response.content if getattr(block, "type", None) == "server_tool_use"
+    )
 
     hits = []
     for raw in obj.get("coverage") or []:
@@ -83,4 +88,5 @@ def scan_item(
         summary_en=str(obj.get("summary_en", "")).strip(),
         queries=[str(q) for q in (obj.get("queries") or [])],
         hits=hits,
+        searches_used=searches_used,
     )
