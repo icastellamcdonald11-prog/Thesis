@@ -40,7 +40,9 @@ cluster:
 coverage:
   model: "claude-haiku-4-5"
   daily_cap: 15
-  max_tokens: 1024
+  # 1024 truncated the JSON mid-object on 5/15 items in the first live run
+  # (stories with lots of coverage hits) — output is still cheap at Haiku rates.
+  max_tokens: 2048
   max_searches: 3
 
 digest:

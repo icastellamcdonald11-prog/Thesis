@@ -125,7 +125,10 @@ sources:
     route: generic
     category: ministry
     item_type: article
-    enabled: true
+    # DISABLED 2026-07-13 (first live run): page fetches but only header/nav
+    # anchors are in the raw HTML — the policy list is JS-rendered. Needs the
+    # underlying JSON/XHR endpoint (browser devtools > Network) or Playwright.
+    enabled: false
     weight: 1.0
     max_items: 30
     scrape_config:
@@ -222,7 +225,10 @@ sources:
     route: generic
     category: ministry
     item_type: article
-    enabled: true
+    # DISABLED 2026-07-13 (first live run): only section-nav anchors in raw
+    # HTML — the article list is JS-rendered. Needs the JSON/XHR endpoint or
+    # Playwright.
+    enabled: false
     weight: 1.0
     max_items: 30
     scrape_config:
@@ -238,7 +244,9 @@ sources:
     route: generic
     category: ministry
     item_type: article
-    enabled: true
+    # DISABLED 2026-07-13 (first live run): raw HTML contains a single anchor —
+    # page is JS-rendered. Needs the JSON/XHR endpoint or Playwright.
+    enabled: false
     weight: 1.0
     max_items: 30
     scrape_config:
@@ -254,7 +262,9 @@ sources:
     route: generic
     category: thinktank
     item_type: article
-    enabled: true
+    # DISABLED 2026-07-13 (first live run): zero anchors in raw HTML — fully
+    # JS-rendered. Needs the JSON/XHR endpoint or Playwright.
+    enabled: false
     weight: 1.0
     max_items: 20
     scrape_config:
@@ -286,7 +296,9 @@ sources:
     route: generic
     category: thinktank
     item_type: article
-    enabled: true
+    # DISABLED 2026-07-13 (first live run): zero anchors in raw HTML — fully
+    # JS-rendered. Needs the JSON/XHR endpoint or Playwright.
+    enabled: false
     weight: 1.0
     max_items: 20
     scrape_config:
