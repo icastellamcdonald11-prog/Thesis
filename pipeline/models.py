@@ -55,3 +55,12 @@ class DiffVerdict:
     local_english_coverage: list[dict]
     pitch_angle: str
     confidence: str  # "low" | "medium" | "high"
+
+
+@dataclass
+class Translation:
+    """Stage 2 (current): English translation of one publication's daily headline."""
+
+    item_id: str
+    title_en: str
+    summary_en: str = ""

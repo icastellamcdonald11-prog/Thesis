@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from pipeline.models import RawItem, TriageScore, DiffVerdict
+from pipeline.models import RawItem, TriageScore, DiffVerdict, Translation
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS items (
@@ -61,6 +61,19 @@ CREATE TABLE IF NOT EXISTS digest_log (
     item_id TEXT NOT NULL REFERENCES items(id),
     digest_date TEXT NOT NULL,
     PRIMARY KEY (item_id, digest_date)
+);
+
+-- Current Stage 2 (2026-07-20): English translation of a publication's daily
+-- headline. Stage 1 caps each source to its single top story per fetch
+-- (sources.yaml max_items: 1), so one row here is roughly "today's headline,
+-- translated" for that source. Replaces the old triage/diffcheck path below,
+-- which stays in the schema (and is still populated if you re-enable it via
+-- config/settings.yaml) but is no longer part of the default daily run.
+CREATE TABLE IF NOT EXISTS translation (
+    item_id TEXT PRIMARY KEY REFERENCES items(id),
+    title_en TEXT NOT NULL,
+    summary_en TEXT NOT NULL DEFAULT '',
+    translated_at TEXT NOT NULL
 );
 """
 
@@ -235,5 +248,35 @@ def save_clusters(conn: sqlite3.Connection, clusters: list[dict]) -> None:
 def latest_clusters(conn: sqlite3.Connection, digest_date: str) -> list[sqlite3.Row]:
     return conn.execute(
         "SELECT * FROM clusters WHERE date(detected_at) = ? ORDER BY source_count DESC",
+        (digest_date,),
+    ).fetchall()
+
+
+def items_pending_translation(conn: sqlite3.Connection, limit: int | None = None) -> list[sqlite3.Row]:
+    query = """SELECT i.* FROM items i
+               LEFT JOIN translation tr ON tr.item_id = i.id
+               WHERE tr.item_id IS NULL
+               ORDER BY i.fetched_at ASC"""
+    if limit:
+        query += f" LIMIT {int(limit)}"
+    return conn.execute(query).fetchall()
+
+
+def save_translation(conn: sqlite3.Connection, translation: Translation) -> None:
+    conn.execute(
+        """INSERT OR REPLACE INTO translation (item_id, title_en, summary_en, translated_at)
+           VALUES (?, ?, ?, ?)""",
+        (translation.item_id, translation.title_en, translation.summary_en, now_iso()),
+    )
+
+
+def digest_headlines(conn: sqlite3.Connection, digest_date: str) -> list[sqlite3.Row]:
+    """Today's translated headline per source, for the daily digest."""
+    return conn.execute(
+        """SELECT i.*, tr.title_en, tr.summary_en
+           FROM items i
+           JOIN translation tr ON tr.item_id = i.id
+           WHERE date(i.fetched_at) = ?
+           ORDER BY i.source_id""",
         (digest_date,),
     ).fetchall()

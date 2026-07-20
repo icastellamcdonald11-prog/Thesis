@@ -36,6 +36,7 @@ class Settings:
     triage: dict
     cluster: dict
     diffcheck: dict
+    translate: dict
     digest: dict
     email: EmailConfig
     db_path: Path
@@ -71,6 +72,7 @@ class Settings:
             triage=raw.get("triage", {}),
             cluster=raw.get("cluster", {}),
             diffcheck=raw.get("diffcheck", {}),
+            translate=raw.get("translate", {}),
             digest=raw.get("digest", {}),
             email=email,
             db_path=REPO_ROOT / storage.get("db_path", "data/pitch_discovery.db"),

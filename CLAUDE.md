@@ -2,6 +2,31 @@
 
 Paste everything below this line into Claude Code as your opening prompt. It doubles as the project's CLAUDE.md — save it to the repo root once the project is scaffolded.
 
+## 2026-07-20 update — Stage 3 dropped, Stage 2 simplified
+
+Per direct product feedback, the differentiation-check stage (Stage 3 below —
+Sonnet + web search, checking FT/competitor coverage) is **disabled**: too
+expensive and unreliable in practice. The Haiku triage/scoring stage (Stage 2
+below) is also **dropped from the default run**. Both are superseded by a
+single cheap step: `pipeline/translate/` translates each source's daily
+headline (Stage 1 now keeps only the single top item per source — see
+`max_items: 1` in `sources.yaml`) into English via one Haiku batch call per
+day, no scoring, no web search. See `README.md` for the current architecture.
+
+Cluster detection (the "flag clusters" note in Pitch criteria below, and the
+end of Stage 2) is dormant along with triage, since it read triage tags.
+
+The rest of this document — pitch criteria, the original three-stage design,
+the original starting-source list — is kept as a record of the original brief
+and rationale. Code and config for the old stages are untouched (not
+deleted); flip `triage.enabled` / `diffcheck.enabled` to `true` in
+`config/settings.yaml` if you want them back (you'd also need to re-wire
+`scripts/run_all.py` and `pipeline/digest/render.py`, which currently only
+consume translation output).
+
+`sources.yaml` was rewritten around a new ~30-publication list (see the file's
+header comment for what's verified vs. best-effort-guessed).
+
 ## Who I am and what this is
 
 I'm a journalist starting an internship at the Financial Times, covering China. I want a pipeline that monitors Chinese-language media and social trending data, triages stories against my pitch criteria, and emails me a daily digest of 5–10 pitch candidates. I will assess candidates manually; the tool's job is discovery and differentiation-checking, not writing.

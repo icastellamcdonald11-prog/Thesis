@@ -21,26 +21,43 @@ acquisition:
   fuzzy_title_similarity_threshold: 0.85
   fuzzy_dedupe_window_hours: 72
 
+# Legacy Stage 2 (Haiku scoring against the FT pitch criteria) — disabled
+# 2026-07-20 in favor of the simpler `translate:` flow below (no scoring, just
+# a plain translation of each source's daily headline). Code and table are
+# untouched; set enabled: true (and see scripts/run_all.py) to bring it back.
 triage:
+  enabled: false
   model: "claude-haiku-4-5-20251001"
   batch_size: 25
   max_tokens: 4096
   score_threshold_total: 4
   score_threshold_in_niche: 1
 
+# Cluster (recurring-theme) detection reads triage tags, so it's dormant along
+# with triage above — no separate toggle needed.
 cluster:
   window_days: 7
   min_sources: 3
 
+# Legacy Stage 3 (Sonnet + web_search competitor/FT differentiation check) —
+# disabled 2026-07-20 per product feedback: too expensive and unreliable.
+# Code and table are untouched; set enabled: true to bring it back.
 diffcheck:
+  enabled: false
   model: "claude-sonnet-5"
   daily_cap: 15
   max_tokens: 2048
 
+# Current Stage 2 (2026-07-20): translates each source's daily headline into
+# English. Cheap — one Haiku batch call for the whole day's headlines, no web
+# search, no scoring.
+translate:
+  model: "claude-haiku-4-5-20251001"
+  batch_size: 40
+  max_tokens: 4096
+
 digest:
   output_dir: "digests"
-  min_candidates: 5
-  max_candidates: 10
 
 email:
   smtp_host: "smtp.gmail.com"
