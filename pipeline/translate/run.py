@@ -34,10 +34,11 @@ def _chunked(seq: list, size: int):
 def run(limit: int | None = None, dry_run: bool = False) -> dict[str, int]:
     settings = Settings.load()
     cfg = settings.translate
+    effective_limit = cfg.get("max_items_per_run", 60) if limit is None else limit
 
     with get_connection(settings.db_path) as conn:
         init_db(conn)
-        pending = items_pending_translation(conn, limit=limit)
+        pending = items_pending_translation(conn, limit=effective_limit)
         logger.info("%d items pending translation", len(pending))
 
         if dry_run or not pending:

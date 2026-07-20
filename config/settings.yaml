@@ -50,11 +50,16 @@ diffcheck:
 
 # Current Stage 2 (2026-07-20): translates each source's daily headline into
 # English. Cheap — one Haiku batch call for the whole day's headlines, no web
-# search, no scoring.
+# search, no scoring. items_pending_translation() (pipeline/db.py) already
+# scopes to *today's* items only, but max_items_per_run is a second line of
+# defense against unbounded API spend if that ever regresses or a source
+# misbehaves and floods items in one day — with ~30 sources capped to 1 item
+# each in sources.yaml, worst case is ~30/day, so 60 gives headroom.
 translate:
   model: "claude-haiku-4-5-20251001"
   batch_size: 40
   max_tokens: 4096
+  max_items_per_run: 60
 
 digest:
   output_dir: "digests"

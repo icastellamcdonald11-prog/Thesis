@@ -253,9 +253,18 @@ def latest_clusters(conn: sqlite3.Connection, digest_date: str) -> list[sqlite3.
 
 
 def items_pending_translation(conn: sqlite3.Connection, limit: int | None = None) -> list[sqlite3.Row]:
+    """Only considers items fetched *today* (UTC) — translating a backlog item
+    from days ago is wasted API spend, since digest_headlines() only ever
+    shows today's items anyway. This also caps worst-case cost per run to
+    "however many sources fetched something new today", regardless of how
+    large a backlog built up while this stage wasn't running (e.g. while the
+    API key was out of credit) — see the 2026-07-20 incident where this
+    query, unscoped, tried to translate a ~5,100-item multi-week backlog in
+    one run and burned through a $10 top-up."""
     query = """SELECT i.* FROM items i
                LEFT JOIN translation tr ON tr.item_id = i.id
                WHERE tr.item_id IS NULL
+               AND date(i.fetched_at) = date('now')
                ORDER BY i.fetched_at ASC"""
     if limit:
         query += f" LIMIT {int(limit)}"
