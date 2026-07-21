@@ -129,7 +129,9 @@ python scripts/mark_feedback.py <item_id> ignored
   Every current source has `max_items: 1` — Stage 1 keeps only the top item
   per source per fetch (that source's current headline).
 - `config/settings.yaml` — batch sizes, SMTP host/port, db path,
-  `triage.enabled` / `diffcheck.enabled` toggles for the dormant stages.
+  `triage.enabled` / `diffcheck.enabled` toggles for the dormant stages,
+  `detail_summary` (fetches each kept item's own article page for a lead
+  paragraph when the listing page had no description — most `scrape` sources).
   Non-secret only.
 - Secrets come from the environment (`.env` locally, GitHub Actions secrets in
   CI): `ANTHROPIC_API_KEY`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_TO`,

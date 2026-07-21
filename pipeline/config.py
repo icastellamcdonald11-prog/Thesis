@@ -33,6 +33,7 @@ class Settings:
     raw: dict = field(repr=False)
     timezone: str
     acquisition: dict
+    detail_summary: dict
     triage: dict
     cluster: dict
     diffcheck: dict
@@ -69,6 +70,7 @@ class Settings:
             raw=raw,
             timezone=raw.get("timezone", "UTC"),
             acquisition=raw.get("acquisition", {}),
+            detail_summary=raw.get("detail_summary", {}),
             triage=raw.get("triage", {}),
             cluster=raw.get("cluster", {}),
             diffcheck=raw.get("diffcheck", {}),

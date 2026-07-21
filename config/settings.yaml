@@ -21,6 +21,21 @@ acquisition:
   fuzzy_title_similarity_threshold: 0.85
   fuzzy_dedupe_window_hours: 72
 
+# 2026-07-21: most `scrape`-type sources have no description on their listing
+# page for GenericSelectorScraper's summary_selector to grab, so the digest
+# showed a title and link only for most sources. When an item's summary_zh
+# comes back empty, Stage 1 fetches the article's own page and pulls its
+# first substantial paragraph(s) as a stand-in — one extra request per item
+# actually kept (after dedup/max_items), not per candidate. Lighter timeout/
+# retry than the main scrape settings since this is enrichment, not core to
+# the item existing — a slow article page shouldn't stall the whole run.
+detail_summary:
+  enabled: true
+  min_paragraph_len: 20
+  max_summary_len: 200
+  timeout_seconds: 10
+  max_retries: 1
+
 # Legacy Stage 2 (Haiku scoring against the FT pitch criteria) — disabled
 # 2026-07-20 in favor of the simpler `translate:` flow below (no scoring, just
 # a plain translation of each source's daily headline). Code and table are

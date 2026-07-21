@@ -12,6 +12,8 @@ import logging
 
 from pipeline.acquisition.base import AdapterError
 from pipeline.acquisition.dedupe import is_duplicate
+from pipeline.acquisition.detail_summary import fetch_lead_paragraph
+from pipeline.acquisition.ratelimit import PerDomainRateLimiter
 from pipeline.acquisition.registry import get_adapter
 from pipeline.config import Settings, enabled_sources
 from pipeline.db import get_connection, init_db, insert_item
@@ -31,6 +33,8 @@ def run(dry_run: bool = False, only_source: str | None = None) -> dict[str, int]
     stats: dict[str, int] = {}
     fuzzy_window = settings.acquisition.get("fuzzy_dedupe_window_hours", 72)
     fuzzy_threshold = settings.acquisition.get("fuzzy_title_similarity_threshold", 0.85)
+    detail_summary_enabled = settings.detail_summary.get("enabled", True)
+    detail_summary_limiter = PerDomainRateLimiter(settings.acquisition.get("per_domain_min_interval_seconds", 3))
 
     with get_connection(settings.db_path) as conn:
         init_db(conn)
@@ -64,6 +68,8 @@ def run(dry_run: bool = False, only_source: str | None = None) -> dict[str, int]
                     window_hours=fuzzy_window, similarity_threshold=fuzzy_threshold,
                 ):
                     continue
+                if detail_summary_enabled and not item.summary_zh:
+                    item.summary_zh = fetch_lead_paragraph(item.url, settings, detail_summary_limiter)
                 insert_item(conn, item)
                 inserted += 1
             stats[source_id] = inserted
