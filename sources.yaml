@@ -28,14 +28,21 @@
 # Explicitly requested skip: Caixin (財新) — paywalled, disabled per your note
 # to skip it unless we have an account.
 #
-# From your second (name-only, no-URL) list, these are NOT added because I
-# don't have a confident real URL for them — tell me the URLs (or say "look
-# it up") and I'll add them: 人物, 每日人物, 新周刊, 中国新闻周刊, 上观,
-# 都市快报. The rest of that list duplicates publications already below
-# (澎湃新闻/thepaper, 界面新闻/jiemian, 新京报/bjnews, 南方周末/infzm,
-# 21世纪经济报道/century_biz_herald, 第一财经/yicai, 36氪) or is added as
-# xinhua / china_daily / china_youth_daily / lifeweek where I'm confident of
-# the real domain from general knowledge — still unverified, flagged below.
+# From your second (name-only, no-URL) list, these are still NOT added because
+# I don't have a confident real URL for them — tell me the URLs (or say "look
+# it up") and I'll add them: 人物, 每日人物, 新周刊, 中国新闻周刊, 都市快报.
+# The rest of that list duplicates publications already below (澎湃新闻/thepaper,
+# 界面新闻/jiemian, 新京报/bjnews, 南方周末/infzm, 21世纪经济报道/century_biz_herald,
+# 第一财经/yicai, 36氪) or is added as xinhua / china_daily / china_youth_daily /
+# lifeweek / shobserver (上观, in the 2026-07-21 batch below) where I'm confident
+# of the real domain from general knowledge — still unverified, flagged below.
+#
+# 2026-07-21 ADDITIONS: financial wires, sector-vertical trade press, and
+# provincial/regional outlets, per your ask to fill the gaps flagged after the
+# first live run (heavy on policy/party press, light on markets wires, sector
+# verticals, and regional coverage that often scoops national outlets). Same
+# caveats as above — best-effort domains/selectors, confidence noted per
+# source, unverified against live DOM.
 
 sources:
   - id: caixin
@@ -598,6 +605,193 @@ sources:
     scrape_config:
       base_url: "https://www.lifeweek.com.cn/"
       list_url: "https://www.lifeweek.com.cn/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  # --- Financial wires ---
+
+  - id: cls
+    name: 财联社 Cailianshe
+    type: scrape
+    route: generic
+    category: markets
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.cls.cn/"
+      list_url: "https://www.cls.cn/telegraph"
+      list_selector: "a[href*='/detail/']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: wallstreetcn
+    name: 华尔街见闻 Wallstreetcn
+    type: scrape
+    route: generic
+    category: markets
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://wallstreetcn.com/"
+      list_url: "https://wallstreetcn.com/live"
+      list_selector: "a[href*='/articles/']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  # --- Sector verticals ---
+
+  - id: semiconductor_ijiwei
+    name: 集微网 ijiwei (semiconductors)
+    type: scrape
+    route: generic
+    category: tech
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.ijiwei.com/"
+      list_url: "https://www.ijiwei.com/"
+      list_selector: "a[href*='/n/']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: ev_gaogong
+    name: 高工锂电 GGII (EV battery/supply chain)
+    type: scrape
+    route: generic
+    category: business
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.gg-lb.com/"
+      list_url: "https://www.gg-lb.com/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: property_guandian
+    name: 观点网 Guandian (real estate/property)
+    type: scrape
+    route: generic
+    category: property
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.guandian.com.cn/"
+      list_url: "https://www.guandian.com.cn/"
+      list_selector: "a[href*='/article/']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  # --- Provincial / regional (often scoop national outlets on local stories:
+  # LGFV debt, local property distress, factory closures) ---
+
+  - id: shobserver
+    name: 上观新闻 Shanghai Observer
+    type: scrape
+    route: generic
+    category: regional
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.shobserver.com/"
+      list_url: "https://www.shobserver.com/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: nandu
+    name: 南方都市报 Southern Metropolis Daily (Guangdong)
+    type: scrape
+    route: generic
+    category: regional
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.nandu.com/"
+      list_url: "https://www.nandu.com/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: hongxing
+    name: 红星新闻 Red Star News (Chengdu/Sichuan)
+    type: scrape
+    route: generic
+    category: regional
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.hongxing.com/"
+      list_url: "https://www.hongxing.com/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: jimunews
+    name: 极目新闻 Jimu News (Wuhan/Hubei)
+    type: scrape
+    route: generic
+    category: regional
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.jimunews.cn/"
+      list_url: "https://www.jimunews.cn/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: dahe
+    name: 大河网 Dahe.cn (Henan)
+    type: scrape
+    route: generic
+    category: regional
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.dahe.cn/"
+      list_url: "https://www.dahe.cn/"
       list_selector: "a[href*='.html']"
       title_selector: null
       link_selector: null
