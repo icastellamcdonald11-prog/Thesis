@@ -131,7 +131,9 @@ sources:
     scrape_config:
       base_url: "http://www.nbd.com.cn/"
       list_url: "http://www.nbd.com.cn/"
-      list_selector: "a[href*='.html']"
+      # 2026-07-21: was "a[href*='.html']", which grabbed the app-download page
+      # (/corp/2016app/index.html). Article URLs look like /articles/YYYY-MM-DD/...
+      list_selector: "a[href*='/articles/']"
       title_selector: null
       link_selector: null
       link_attr: "href"
@@ -197,7 +199,10 @@ sources:
     scrape_config:
       base_url: "https://www.bjnews.com.cn/"
       list_url: "https://www.bjnews.com.cn/"
-      list_selector: "a[href*='.html']"
+      # 2026-07-21: was "a[href*='.html']", which grabbed a static campaign
+      # microsite on the h5. subdomain (now also excluded by same_domain_only,
+      # but tightening the selector too since it was a same-site-adjacent miss).
+      list_selector: "a[href*='/detail/']"
       title_selector: null
       link_selector: null
       link_attr: "href"
@@ -372,11 +377,16 @@ sources:
     route: generic
     category: macro
     item_type: article
+    # 2026-07-21: http:// connection timed out (3 attempts) — low-confidence
+    # guess that it's https-only now and the http listener is just dead; could
+    # equally be the whole site being down or blocking bot traffic. Left
+    # enabled since a timeout is a soft per-source skip either way; disable if
+    # this guess doesn't pan out on the next live run.
     enabled: true
     max_items: 1
     scrape_config:
-      base_url: "http://comment.cfisnet.com/"
-      list_url: "http://comment.cfisnet.com/RE/WorldEconomy/"
+      base_url: "https://comment.cfisnet.com/"
+      list_url: "https://comment.cfisnet.com/RE/WorldEconomy/"
       list_selector: "a[href*='.html']"
       title_selector: null
       link_selector: null
@@ -444,6 +454,10 @@ sources:
     route: generic
     category: politics
     item_type: article
+    # 2026-07-21: matched anchors but yielded 0 items after title/href extraction
+    # (not a selector-matched-nothing error, so no anchor sample was logged) —
+    # likely icon/image-only links with no text; the title="" attribute fallback
+    # added this round might fix it, but unconfirmed without another live run.
     enabled: true
     max_items: 1
     scrape_config:
@@ -462,6 +476,8 @@ sources:
     route: generic
     category: politics
     item_type: article
+    # 2026-07-21: same symptom as org_personnel_news above (0 items, no error) —
+    # same caveat, unconfirmed fix.
     enabled: true
     max_items: 1
     scrape_config:
@@ -498,6 +514,10 @@ sources:
     route: generic
     category: legal
     item_type: article
+    # 2026-07-21: matched a stale 2019 scholar-bio page, not a current headline.
+    # Same domain, so same_domain_only doesn't help here — this needs an actual
+    # tighter list_url/selector and I don't have enough signal to guess it
+    # correctly a second time. Left as-is pending a live-log look.
     enabled: true
     max_items: 1
     scrape_config:
@@ -516,6 +536,9 @@ sources:
     route: generic
     category: politics
     item_type: article
+    # 2026-07-21: returned a real article, but 6 days stale — the selector may
+    # be catching a pinned/featured slot rather than the actual latest list.
+    # Not broken enough to have a clear fix; flagging rather than guessing.
     enabled: true
     max_items: 1
     scrape_config:
@@ -567,8 +590,11 @@ sources:
     enabled: true
     max_items: 1
     scrape_config:
-      base_url: "https://www.chinadaily.com.cn/"
-      list_url: "https://www.chinadaily.com.cn/"
+      # 2026-07-21: www.chinadaily.com.cn is the *English* edition (chinadaily.com.cn
+      # is primarily English-language) — the run came back with an English "title_zh".
+      # Switched to the Chinese-language site.
+      base_url: "https://cn.chinadaily.com.cn/"
+      list_url: "https://cn.chinadaily.com.cn/"
       list_selector: "a[href*='.html']"
       title_selector: null
       link_selector: null
@@ -600,6 +626,8 @@ sources:
     route: generic
     category: culture
     item_type: article
+    # 2026-07-21: same symptom as org_personnel_news/dangjian (0 items, no
+    # error) — same caveat, unconfirmed fix.
     enabled: true
     max_items: 1
     scrape_config:

@@ -125,6 +125,84 @@ def test_generic_scraper_anchor_mode_with_min_title_len(monkeypatch, settings):
     assert items[0].url == "https://www.cnenergynews.cn/jsxw/2026-07/05/article_one.html"
 
 
+def test_generic_scraper_drops_cross_domain_links(monkeypatch, settings):
+    """Homepage nav bars often link to sibling subdomains (language editions,
+    app-download pages, mobile campaign microsites) that a broad href-substring
+    selector happily matches. same_domain_only (default True) should drop those
+    while keeping same-site article links, without needing a hand-tuned selector."""
+    html = (
+        "<html><body>"
+        "<a href='https://en.example.com/102775/416940/index.html'>Follow Xi</a>"
+        "<a href='/n1/2026/0721/c1024-40761357.html'>习近平在上海考察调研经济工作情况</a>"
+        "</body></html>"
+    ).encode("utf-8")
+    monkeypatch.setattr(ratelimit.requests, "get", lambda *a, **k: FakeResponse(html))
+
+    source = {
+        "id": "peoples_daily",
+        "type": "scrape",
+        "item_type": "article",
+        "scrape_config": {
+            "base_url": "http://www.example.com/",
+            "list_url": "http://www.example.com/",
+            "list_selector": "a[href*='.html']",
+            "min_title_len": 8,
+        },
+    }
+    items = GenericSelectorScraper().fetch(source, settings)
+
+    assert len(items) == 1
+    assert items[0].title_zh == "习近平在上海考察调研经济工作情况"
+
+
+def test_generic_scraper_same_domain_only_can_be_disabled(monkeypatch, settings):
+    html = "<html><body><a href='https://other.example.com/story.html'>跨站文章标题测试内容</a></body></html>".encode("utf-8")
+    monkeypatch.setattr(ratelimit.requests, "get", lambda *a, **k: FakeResponse(html))
+
+    source = {
+        "id": "test_source",
+        "type": "scrape",
+        "item_type": "article",
+        "scrape_config": {
+            "base_url": "http://www.example.com/",
+            "list_url": "http://www.example.com/",
+            "list_selector": "a[href*='.html']",
+            "min_title_len": 8,
+            "same_domain_only": False,
+        },
+    }
+    items = GenericSelectorScraper().fetch(source, settings)
+
+    assert len(items) == 1
+
+
+def test_generic_scraper_falls_back_to_title_attribute(monkeypatch, settings):
+    """Icon/image-only anchors have no visible get_text(); a real headline anchor
+    styled the same way shouldn't be silently dropped if it carries a title=""."""
+    html = (
+        "<html><body>"
+        "<a href='/n/2026072112345.html' title='光伏产业合作新政策出台细则解读'><img src='icon.png'></a>"
+        "</body></html>"
+    ).encode("utf-8")
+    monkeypatch.setattr(ratelimit.requests, "get", lambda *a, **k: FakeResponse(html))
+
+    source = {
+        "id": "test_source",
+        "type": "scrape",
+        "item_type": "article",
+        "scrape_config": {
+            "base_url": "http://www.example.com/",
+            "list_url": "http://www.example.com/",
+            "list_selector": "a[href*='.html']",
+            "min_title_len": 8,
+        },
+    }
+    items = GenericSelectorScraper().fetch(source, settings)
+
+    assert len(items) == 1
+    assert items[0].title_zh == "光伏产业合作新政策出台细则解读"
+
+
 def test_tophub_scraper_raises_when_page_structure_changed(monkeypatch, settings):
     monkeypatch.setattr(ratelimit.requests, "get", lambda *a, **k: FakeResponse(b"<html><body>nothing here</body></html>"))
 

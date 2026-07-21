@@ -1,12 +1,21 @@
 from __future__ import annotations
 
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
 from pipeline.acquisition.base import Adapter, AdapterError
 from pipeline.acquisition.ratelimit import PerDomainRateLimiter, fetch_with_retry
 from pipeline.models import RawItem
+
+
+def _registrable_host(url: str) -> str:
+    """netloc with a leading 'www.' stripped, for same-site comparison. Doesn't
+    handle every edge case (e.g. other regional subdomains are still distinct
+    hosts on purpose — see same_domain_only below), just the common www/no-www
+    split."""
+    host = urlparse(url).netloc.lower()
+    return host[4:] if host.startswith("www.") else host
 
 
 class GenericSelectorScraper(Adapter):
@@ -59,17 +68,30 @@ class GenericSelectorScraper(Adapter):
         # min_title_len filters out nav/pagination anchors when list_selector is a
         # broad pattern like "a[href*='.html']" rather than a tight list-row selector.
         min_title_len = sc.get("min_title_len", 0)
+        # Homepage-style pages (as opposed to a tight list-row selector) often carry
+        # nav links to sibling subdomains — language editions (en./french. etc.),
+        # app-download pages, mobile (h5.) campaign microsites — that a broad
+        # selector like "a[href*='.html']" happily matches. Restricting to the
+        # source's own host (ignoring a leading "www.") drops those without needing
+        # a hand-tuned selector per site. Set same_domain_only: false to disable.
+        same_domain_only = sc.get("same_domain_only", True)
+        allowed_host = _registrable_host(sc.get("base_url", sc["list_url"])) if same_domain_only else None
         items = []
         for row in rows:
             title_el = row.select_one(sc["title_selector"]) if sc.get("title_selector") else row
             link_el = row.select_one(sc["link_selector"]) if sc.get("link_selector") else row
             if title_el is None or link_el is None:
                 continue
-            title = title_el.get_text(strip=True)
+            # Fall back to the anchor's title="" attribute when it has no visible
+            # text (e.g. an icon/image-only link) — otherwise real headline anchors
+            # on some pages get silently dropped instead of just the decorative ones.
+            title = title_el.get_text(strip=True) or (title_el.get("title") or "").strip()
             href = link_el.get(sc.get("link_attr", "href"))
             if not title or not href or len(title) < min_title_len:
                 continue
             url = urljoin(sc.get("base_url", sc["list_url"]), href)
+            if allowed_host is not None and _registrable_host(url) != allowed_host:
+                continue
 
             summary = ""
             if sc.get("summary_selector"):

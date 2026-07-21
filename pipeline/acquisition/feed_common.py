@@ -1,10 +1,24 @@
 from __future__ import annotations
 
+import re
+
 import feedparser
+from bs4 import BeautifulSoup
 
 from pipeline.acquisition.base import AdapterError
 from pipeline.acquisition.ratelimit import PerDomainRateLimiter, fetch_with_retry
 from pipeline.models import RawItem
+
+
+def _strip_html(text: str) -> str:
+    """Some feeds (observed: yicai's rsshub route) embed literal markup like
+    <b>...</b> inside <title>/<description> instead of plain text — feedparser
+    doesn't sanitize that away, so it flows straight into the digest. Strip any
+    tags while preserving real inter-tag spacing (get_text(strip=True) would
+    also eat a genuine space that happened to sit right at a tag boundary)."""
+    if "<" not in text:
+        return text.strip()
+    return re.sub(r"\s+", " ", BeautifulSoup(text, "html.parser").get_text()).strip()
 
 
 def fetch_feed_items(source: dict, settings, url: str) -> list[RawItem]:
@@ -34,10 +48,10 @@ def fetch_feed_items(source: dict, settings, url: str) -> list[RawItem]:
     items = []
     for entry in feed.entries:
         link = entry.get("link")
-        title = entry.get("title", "").strip()
+        title = _strip_html(entry.get("title", ""))
         if not link or not title:
             continue
-        summary = entry.get("summary", "") or entry.get("description", "")
+        summary = _strip_html(entry.get("summary", "") or entry.get("description", ""))
         published = entry.get("published") or entry.get("updated")
         items.append(
             RawItem(
