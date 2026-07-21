@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+from datetime import datetime, timezone
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
@@ -7,6 +9,8 @@ from bs4 import BeautifulSoup
 from pipeline.acquisition.base import Adapter, AdapterError
 from pipeline.acquisition.ratelimit import PerDomainRateLimiter, fetch_with_retry
 from pipeline.models import RawItem
+
+_YEAR_RE = re.compile(r"(?<!\d)(19\d{2}|20\d{2})(?:\d{2}){0,2}(?!\d)")
 
 
 def _registrable_host(url: str) -> str:
@@ -16,6 +20,18 @@ def _registrable_host(url: str) -> str:
     split."""
     host = urlparse(url).netloc.lower()
     return host[4:] if host.startswith("www.") else host
+
+
+def _newest_url_year(url: str) -> int | None:
+    """Best-effort: the most recent-looking 4-digit year embedded in a URL's
+    path — publish-date patterns like /2024/4-11/, /20260721/, /202607/20/,
+    t20190823_ are common on Chinese news sites, and a broad selector often
+    matches an old pinned/evergreen page alongside genuine current headlines.
+    Returns None (never treated as stale) if no plausible year token is
+    found — this is a coarse signal, not a guess when there's nothing to go
+    on."""
+    years = [int(m) for m in _YEAR_RE.findall(url)]
+    return max(years) if years else None
 
 
 class GenericSelectorScraper(Adapter):
@@ -76,6 +92,15 @@ class GenericSelectorScraper(Adapter):
         # a hand-tuned selector per site. Set same_domain_only: false to disable.
         same_domain_only = sc.get("same_domain_only", True)
         allowed_host = _registrable_host(sc.get("base_url", sc["list_url"])) if same_domain_only else None
+        # Broad selectors on homepage-style pages also happily match old pinned
+        # or evergreen pages (a 2019 staff bio, a 2024 foundation page) sitting
+        # right next to today's real headline. Reject anything whose URL embeds
+        # a year token older than max_url_age_years ago; a URL with no year
+        # token at all is never rejected on this basis. Set reject_stale_urls:
+        # false to disable per source.
+        reject_stale_urls = sc.get("reject_stale_urls", True)
+        max_url_age_years = sc.get("max_url_age_years", 1)
+        stale_before_year = datetime.now(timezone.utc).year - max_url_age_years
         items = []
         for row in rows:
             title_el = row.select_one(sc["title_selector"]) if sc.get("title_selector") else row
@@ -92,6 +117,10 @@ class GenericSelectorScraper(Adapter):
             url = urljoin(sc.get("base_url", sc["list_url"]), href)
             if allowed_host is not None and _registrable_host(url) != allowed_host:
                 continue
+            if reject_stale_urls:
+                newest_year = _newest_url_year(url)
+                if newest_year is not None and newest_year < stale_before_year:
+                    continue
 
             summary = ""
             if sc.get("summary_selector"):

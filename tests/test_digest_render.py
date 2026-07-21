@@ -37,6 +37,29 @@ def test_render_markdown_empty_state(db_path):
     assert "No publications returned a new headline today" in markdown
 
 
+def test_digest_headlines_dedupes_to_latest_per_source(db_path):
+    """2026-07-21: a source appeared twice in one day's digest when the
+    pipeline ran more than once (or a source's headline changed mid-day) —
+    digest_headlines() must return only the most recently fetched item per
+    source_id, not every item fetched that day."""
+    with get_connection(db_path) as conn:
+        init_db(conn)
+
+        stale = RawItem(source_id="xinhua", url="https://a.com/stale", title_zh="旧标题")
+        insert_item(conn, stale)
+        save_translation(conn, Translation(item_id=stale.id, title_en="Stale headline"))
+
+        fresh = RawItem(source_id="xinhua", url="https://a.com/fresh", title_zh="新标题")
+        insert_item(conn, fresh)
+        save_translation(conn, Translation(item_id=fresh.id, title_en="Fresh headline"))
+
+        today = datetime.now(timezone.utc).date().isoformat()
+        headlines = digest_headlines(conn, today)
+
+    assert len(headlines) == 1
+    assert headlines[0]["title_en"] == "Fresh headline"
+
+
 def test_render_markdown_omits_summary_when_blank(db_path):
     with get_connection(db_path) as conn:
         init_db(conn)

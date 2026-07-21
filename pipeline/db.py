@@ -280,12 +280,20 @@ def save_translation(conn: sqlite3.Connection, translation: Translation) -> None
 
 
 def digest_headlines(conn: sqlite3.Connection, digest_date: str) -> list[sqlite3.Row]:
-    """Today's translated headline per source, for the daily digest."""
+    """Today's translated headline per source, for the daily digest — exactly
+    one row per source_id (the most recently fetched one that day), even if a
+    source's headline changed mid-day or the pipeline ran more than once
+    (2026-07-21: without this, a source appeared once per run, duplicated in
+    the digest)."""
     return conn.execute(
         """SELECT i.*, tr.title_en, tr.summary_en
            FROM items i
            JOIN translation tr ON tr.item_id = i.id
            WHERE date(i.fetched_at) = ?
+           AND i.fetched_at = (
+               SELECT MAX(i2.fetched_at) FROM items i2
+               WHERE i2.source_id = i.source_id AND date(i2.fetched_at) = ?
+           )
            ORDER BY i.source_id""",
-        (digest_date,),
+        (digest_date, digest_date),
     ).fetchall()

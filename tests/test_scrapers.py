@@ -28,6 +28,10 @@ def test_generic_scraper_parses_rows(monkeypatch, settings):
             "title_selector": "a",
             "link_selector": "a",
             "link_attr": "href",
+            # Fixture URLs are dated 2024-07-01 — fine for this test (which is
+            # about row parsing, not freshness), but would otherwise trip the
+            # stale-URL filter as the fixture ages relative to the real clock.
+            "reject_stale_urls": False,
         },
     }
     items = GenericSelectorScraper().fetch(source, settings)
@@ -201,6 +205,63 @@ def test_generic_scraper_falls_back_to_title_attribute(monkeypatch, settings):
 
     assert len(items) == 1
     assert items[0].title_zh == "光伏产业合作新政策出台细则解读"
+
+
+def test_generic_scraper_rejects_stale_dated_urls(monkeypatch, settings):
+    """Observed live (century_biz_herald, cass_law, 2026-07-21): a broad
+    selector on a homepage-style page also matches old pinned/evergreen pages
+    (a 2019 staff bio, a 2024 foundation page) right alongside a genuine
+    current headline. Reject anything whose URL embeds a year token more than
+    max_url_age_years old; keep anything with no year token at all."""
+    html = (
+        "<html><body>"
+        "<a href='/2024/4-11/zNMDE0MTFfMTYyNzgzNQ.html'>自拟项目选择制度旧版说明文档</a>"
+        "<a href='/scholar/wlxx/201908/t20190823_4961069.shtml'>翟国强联合党委书记旧简介页面</a>"
+        "<a href='/2026/7-21/freshArticleAboutTrade.html'>中国贸易政策最新进展分析报告</a>"
+        "<a href='/no-date-in-this-url/some-article.html'>无日期路径的普通文章标题内容</a>"
+        "</body></html>"
+    ).encode("utf-8")
+    monkeypatch.setattr(ratelimit.requests, "get", lambda *a, **k: FakeResponse(html))
+
+    source = {
+        "id": "test_source",
+        "type": "scrape",
+        "item_type": "article",
+        "scrape_config": {
+            "base_url": "http://www.example.com/",
+            "list_url": "http://www.example.com/",
+            "list_selector": "a[href*='.html'], a[href*='.shtml']",
+            "min_title_len": 8,
+        },
+    }
+    items = GenericSelectorScraper().fetch(source, settings)
+
+    urls = [it.url for it in items]
+    assert "http://www.example.com/2024/4-11/zNMDE0MTFfMTYyNzgzNQ.html" not in urls
+    assert "http://www.example.com/scholar/wlxx/201908/t20190823_4961069.shtml" not in urls
+    assert "http://www.example.com/2026/7-21/freshArticleAboutTrade.html" in urls
+    assert "http://www.example.com/no-date-in-this-url/some-article.html" in urls
+
+
+def test_generic_scraper_reject_stale_urls_can_be_disabled(monkeypatch, settings):
+    html = "<html><body><a href='/2019/old-article-still-wanted.html'>过去某年的旧文章标题保留测试</a></body></html>".encode("utf-8")
+    monkeypatch.setattr(ratelimit.requests, "get", lambda *a, **k: FakeResponse(html))
+
+    source = {
+        "id": "test_source",
+        "type": "scrape",
+        "item_type": "article",
+        "scrape_config": {
+            "base_url": "http://www.example.com/",
+            "list_url": "http://www.example.com/",
+            "list_selector": "a[href*='.html']",
+            "min_title_len": 8,
+            "reject_stale_urls": False,
+        },
+    }
+    items = GenericSelectorScraper().fetch(source, settings)
+
+    assert len(items) == 1
 
 
 def test_tophub_scraper_raises_when_page_structure_changed(monkeypatch, settings):
