@@ -1,71 +1,72 @@
 # Source list for Stage 1 acquisition. Adding a new rsshub/rss source requires
 # no code changes — just add an entry here. `scrape` sources need a matching
-# module registered in pipeline/acquisition/scraping/registry.py.
+# module registered in pipeline/acquisition/scraping/registry.py, or use
+# `type: scrape, route: generic` with a `scrape_config:` block (CSS selectors).
 #
-# Live-run findings (GitHub Actions, 2026-07-05):
-#   - tophub scraper WORKS (3,023 items on first fetch).
-#   - rsshub.app returns 403 to datacenter IPs — fallback mirrors configured in
-#     config/settings.yaml; self-hosting RSSHub is the durable fix.
-#   - weibo_hot switched from rsshub to a direct scraper of Weibo's public JSON API.
-#   - 36kr switched to its native RSS feed (no RSSHub dependency).
-#   - china_energy_news disabled: guessed URL path 404s, needs a human to find the
-#     right section URL and selectors (see scrape_config below, then re-enable).
+# 2026-07-20 REWRITE: replaced the original 7-source starter list with the
+# ~30-publication list you gave me, per the pivot away from triage/scoring and
+# the Sonnet differentiation-check toward "translate + link each publication's
+# daily headline" (see pipeline/translate/, config/settings.yaml). Every
+# source below has `max_items: 1` — Stage 1 now keeps only the single top item
+# per source per fetch (URL-dedup means an unchanged headline just doesn't
+# reinsert, so a source with no new lead story is silently absent from a given
+# day's digest rather than repeating stale content).
 #
-# max_items caps how many fetched items a source may insert per run, to protect
-# the Stage 2 LLM budget from firehose sources. Dedupe runs before the cap bites
-# on re-fetched items, so day 2 onward mostly inserts genuinely new entries.
+# IMPORTANT — most of these are new and UNVERIFIED. This environment has no
+# general internet egress to test live HTTP fetches (confirmed 2026-07-20:
+# jiemian.com and yicai.com connections timed out, people.com.cn returned 403,
+# all from here — GitHub Actions runners have historically had real internet
+# access, so these may well work fine from there even though I can't check).
+# Most `scrape_config.list_selector` values below are the best-effort generic
+# guess `a[href*='.html']` (a common but not universal CN news-site URL
+# pattern), copied from the jiemian/china_energy_news precedent already in
+# this repo. When a selector matches nothing, GenericSelectorScraper logs a
+# sample of the anchors actually on the page — use that to fix the selector.
+# Run `python -m pipeline.acquisition.run --source <id>` per source to check
+# and iterate; a broken source is logged and skipped, never fatal to the run.
+#
+# Explicitly requested skip: Caixin (財新) — paywalled, disabled per your note
+# to skip it unless we have an account.
+#
+# From your second (name-only, no-URL) list, these are NOT added because I
+# don't have a confident real URL for them — tell me the URLs (or say "look
+# it up") and I'll add them: 人物, 每日人物, 新周刊, 中国新闻周刊, 上观,
+# 都市快报. The rest of that list duplicates publications already below
+# (澎湃新闻/thepaper, 界面新闻/jiemian, 新京报/bjnews, 南方周末/infzm,
+# 21世纪经济报道/century_biz_herald, 第一财经/yicai, 36氪) or is added as
+# xinhua / china_daily / china_youth_daily / lifeweek where I'm confident of
+# the real domain from general knowledge — still unverified, flagged below.
 
 sources:
-  - id: weibo_hot
-    name: 微博热搜
+  - id: caixin
+    name: 财新 Caixin
     type: scrape
-    route: weibo_hot
-    category: trending
-    item_type: trend   # topics, not articles — triaged differently (see triage prompt)
-    # DISABLED 2026-07-05: weibo.com/ajax/side/hotSearch 403s GitHub's datacenter
-    # IPs. Not worth fighting — the tophub source's 微博 card already carries the
-    # Weibo hot-search list. Re-enable only if tophub drops that card.
-    enabled: false
-    weight: 0.6
-
-  - id: tophub
-    name: 今日热榜 (tophub.today)
-    type: scrape
-    route: tophub
-    category: trending
-    item_type: trend
-    enabled: true
-    weight: 0.6
-    max_items: 500
-    # Only cards whose platform heading contains one of these (substring match).
-    # Keeps news/finance/tech platforms, drops gaming/entertainment hot lists.
-    platforms:
-      - 微博          # Weibo
-      - 知乎          # Zhihu
-      - 百度          # Baidu hot search
-      - 今日头条      # Toutiao
-      - 36氪          # 36Kr
-      - 虎嗅          # Huxiu
-      - 雪球          # Xueqiu (markets/retail investors)
-      - 华尔街见闻    # Wallstreetcn
-      - 财联社        # Cailianshe (markets wire)
-      - 澎湃新闻      # The Paper
-      - 第一财经      # Yicai
-      - IT之家        # ITHome (tech)
+    route: generic
+    category: markets
+    item_type: article
+    enabled: false  # paywalled — you said skip unless we have an account
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.caixin.com"
+      list_url: "https://www.caixin.com"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
 
   - id: jiemian
-    name: 界面新闻
+    name: 界面 Jiemian
     type: scrape
     # Both /jiemian/list/4 and /jiemian/newsflash 503 on every RSSHub instance
     # (confirmed 2026-07-05; the same mirrors serve yicai/thepaper fine), so the
     # whole jiemian namespace is broken on RSSHub — scraping the site directly.
-    # Jiemian article URLs look like /article/NNNNNNN.html; if this selector
-    # matches nothing the run log dumps the anchors actually on the page.
     route: generic
     category: business
     item_type: article
     enabled: true
-    weight: 1.0
+    max_items: 1
     scrape_config:
       base_url: "https://www.jiemian.com/"
       list_url: "https://www.jiemian.com/lists/4.html"
@@ -76,49 +77,527 @@ sources:
       summary_selector: null
       min_title_len: 8
 
+  - id: century_biz_herald
+    name: 21世纪经济报道 21st Century Business Herald
+    type: scrape
+    route: generic
+    category: business
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "http://www.21jingji.com/"
+      list_url: "http://www.21jingji.com/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: econ_info_daily
+    name: 经济参考报 Economic Information Daily
+    type: scrape
+    route: generic
+    category: macro
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "http://jjckb.xinhuanet.com/"
+      list_url: "http://jjckb.xinhuanet.com/"
+      list_selector: "a[href*='.htm']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: nbd
+    name: 每经网 National Business Daily
+    type: scrape
+    route: generic
+    category: business
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "http://www.nbd.com.cn/"
+      list_url: "http://www.nbd.com.cn/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: stdaily
+    name: 科技日报 Science and Technology Daily
+    type: scrape
+    route: generic
+    category: tech
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "http://www.stdaily.com/"
+      list_url: "http://www.stdaily.com/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
   - id: yicai
-    name: 第一财经
+    name: 第一财经 China Business Network (Yicai)
     type: rsshub
     route: /yicai/brief
     category: markets
     item_type: article
     enabled: true
-    weight: 1.0
+    max_items: 1
 
-  - id: 36kr
-    name: 36氪
-    type: rss
-    route: https://36kr.com/feed
-    category: tech
+  - id: infzm
+    name: 南方周末 Southern Weekly
+    type: scrape
+    # You gave https://www.infzm.com/wap/#/ — that's a JS hash-route mobile SPA
+    # a BeautifulSoup scraper can't render at all. Using the plain domain
+    # instead (likely the normal server-rendered desktop homepage); unverified.
+    route: generic
+    category: general
     item_type: article
     enabled: true
-    weight: 1.0
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.infzm.com/"
+      list_url: "https://www.infzm.com/"
+      list_selector: "a[href*='/contents/']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: bjnews
+    name: 新京报 The Beijing News
+    type: scrape
+    route: generic
+    category: general
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.bjnews.com.cn/"
+      list_url: "https://www.bjnews.com.cn/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: peoples_daily
+    name: 人民日报 People's Daily
+    type: scrape
+    route: generic
+    category: policy
+    item_type: article
+    # Returned HTTP 403 when I tried it from this sandbox (2026-07-20) — could
+    # be this environment's network policy, or the site actively blocking
+    # datacenter/bot IPs (in which case GitHub Actions may hit the same wall).
+    # Left enabled since I can't tell which from here; disable if it 403s live.
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "http://www.people.com.cn/"
+      list_url: "http://www.people.com.cn/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: guancha
+    name: 观察者 Guancha
+    type: scrape
+    route: generic
+    category: commentary
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.guancha.cn/"
+      list_url: "https://www.guancha.cn/"
+      list_selector: "a[href*='.shtml']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: stcn
+    name: 证券时报 Securities Times
+    type: scrape
+    route: generic
+    category: markets
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.stcn.com/"
+      list_url: "https://www.stcn.com/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: energy_magazine
+    name: 能源杂志 Energy Magazine
+    type: scrape
+    route: generic
+    category: energy
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.inengyuan.com/"
+      list_url: "https://www.inengyuan.com/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: china_energy_news
+    name: 中国能源报 China Energy News
+    type: scrape
+    route: generic
+    category: energy
+    item_type: article
+    # DISABLED (carried over from the original source list): /jsxw fetches
+    # fine but the article list is JS-rendered — needs Playwright or the
+    # underlying XHR/JSON endpoint (browser devtools > Network tab).
+    enabled: false
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.cnenergynews.cn/"
+      list_url: "https://www.cnenergynews.cn/jsxw"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: china_power
+    name: 中国电力网 China Power
+    type: scrape
+    route: generic
+    category: energy
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "http://www.chinapower.com.cn/"
+      list_url: "http://www.chinapower.com.cn/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: sina_finance_column
+    name: 新浪专栏 Finance Sina
+    type: scrape
+    route: generic
+    category: markets
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://finance.sina.com.cn/"
+      list_url: "https://finance.sina.com.cn/zl/"
+      list_selector: "a[href*='.shtml']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
 
   - id: thepaper
-    name: 澎湃新闻
+    name: 澎湃新闻 The Paper
     type: rsshub
     route: /thepaper/featured
     category: general
     item_type: article
     enabled: true
-    weight: 1.0
+    max_items: 1
 
-  - id: china_energy_news
-    name: 中国能源报
+  - id: thepaper_ftz
+    name: 澎湃新闻 自贸区连线 (The Paper — Free Trade Zone channel)
     type: scrape
     route: generic
-    category: energy
+    category: trade
     item_type: article
-    # DISABLED 2026-07-05 (second attempt): /jsxw fetches fine but the raw HTML
-    # contains only section-nav anchors — the article list is JS-rendered. Fixing
-    # this needs either (a) a Playwright-rendered fetch, or (b) the underlying
-    # JSON/XHR endpoint the page calls (find it in browser devtools > Network tab).
-    # Parked pending that decision; energy stories still arrive via other sources.
-    enabled: false
-    weight: 1.0
+    enabled: true
+    max_items: 1
     scrape_config:
-      base_url: "https://www.cnenergynews.cn/"
-      list_url: "https://www.cnenergynews.cn/jsxw"
+      base_url: "https://www.thepaper.cn/"
+      list_url: "https://www.thepaper.cn/list_25432"
+      # thepaper.cn article URLs conventionally look like
+      # /newsDetail_forward_NNNNNNNN — best-effort guess, unverified.
+      list_selector: "a[href*='/newsDetail_forward_']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: cfisnet
+    name: 国际网 Cfisnet
+    type: scrape
+    route: generic
+    category: macro
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "http://comment.cfisnet.com/"
+      list_url: "http://comment.cfisnet.com/RE/WorldEconomy/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: qiushi
+    name: 求是网 Qiushi
+    type: scrape
+    route: generic
+    category: policy
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "http://www.qstheory.cn/"
+      list_url: "http://www.qstheory.cn/"
+      list_selector: "a[href*='.htm']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: aisixiang
+    name: 爱思想 Aisixiang
+    type: scrape
+    route: generic
+    category: commentary
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.aisixiang.com/"
+      list_url: "https://www.aisixiang.com/"
+      list_selector: "a[href*='/data/']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: discipline_inspection_mag
+    name: 中国纪检监察杂志 China Discipline Inspection Magazine
+    type: scrape
+    route: generic
+    category: politics
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://zgjjjc.ccdi.gov.cn/"
+      list_url: "https://zgjjjc.ccdi.gov.cn/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: org_personnel_news
+    name: 中国组织人事报 China Organisation and Personnel Affairs News
+    type: scrape
+    route: generic
+    category: politics
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.zuzhirenshi.com/"
+      list_url: "https://www.zuzhirenshi.com/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: dangjian
+    name: 党建网 Dangjian.cn
+    type: scrape
+    route: generic
+    category: politics
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "http://www.dangjian.cn/"
+      list_url: "http://www.dangjian.cn/"
+      list_selector: "a[href*='.shtml']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: legal_daily
+    name: 法治网 Legal Daily
+    type: scrape
+    route: generic
+    category: legal
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "http://www.legaldaily.com.cn/"
+      list_url: "http://www.legaldaily.com.cn/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: cass_law
+    name: 中国法学网 CASS Institute of Law
+    type: scrape
+    route: generic
+    category: legal
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "http://iolaw.cssn.cn/"
+      list_url: "http://iolaw.cssn.cn/"
+      list_selector: "a[href*='.shtml']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: qizhi
+    name: 旗帜网 Qizhi
+    type: scrape
+    route: generic
+    category: politics
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "http://www.qizhiwang.org.cn/"
+      list_url: "http://www.qizhiwang.org.cn/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: 36kr
+    name: 36氪 36Kr
+    type: rss
+    route: https://36kr.com/feed
+    category: tech
+    item_type: article
+    enabled: true
+    max_items: 1
+
+  # --- From your second (name-only) list: added where I'm confident of the
+  # real domain from general knowledge, still unverified live. ---
+
+  - id: xinhua
+    name: 新华社 Xinhua
+    type: scrape
+    route: generic
+    category: general
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "http://www.news.cn/"
+      list_url: "http://www.news.cn/"
+      list_selector: "a[href*='.htm']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: china_daily
+    name: 中国日报 China Daily
+    type: scrape
+    route: generic
+    category: general
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.chinadaily.com.cn/"
+      list_url: "https://www.chinadaily.com.cn/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: china_youth_daily
+    name: 中国青年报 China Youth Daily
+    type: scrape
+    route: generic
+    category: general
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.cyol.com/"
+      list_url: "https://www.cyol.com/"
+      list_selector: "a[href*='.html']"
+      title_selector: null
+      link_selector: null
+      link_attr: "href"
+      summary_selector: null
+      min_title_len: 8
+
+  - id: lifeweek
+    name: 三联生活周刊 Sanlian Lifeweek
+    type: scrape
+    route: generic
+    category: culture
+    item_type: article
+    enabled: true
+    max_items: 1
+    scrape_config:
+      base_url: "https://www.lifeweek.com.cn/"
+      list_url: "https://www.lifeweek.com.cn/"
       list_selector: "a[href*='.html']"
       title_selector: null
       link_selector: null

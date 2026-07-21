@@ -1,55 +1,86 @@
 # FT China Pitch-Discovery Pipeline
 
-Monitors Chinese-language media and social trending data, triages stories against
-FT-China pitch criteria, and produces a daily digest of 5–10 pitch candidates plus
-recurring-theme clusters. See `CLAUDE.md` for the full product brief and rationale.
+Monitors Chinese-language media, translates each publication's daily headline
+into English, and produces a daily digest + email. See `CLAUDE.md` for the
+full product brief, rationale, and the 2026-07-20 pivot note at the top of
+that file.
 
-## Live-run findings (first GitHub Actions dry run, 2026-07-05)
+## 2026-07-20 — pivot: translate-and-link, not triage-and-pitch
 
-- **tophub scraper works** — 3,023 items fetched on the first try. A `max_items: 500`
-  cap was added to protect the triage budget.
-- **rsshub.app blocks datacenter IPs** (instant 403 on every route from the Actions
-  runner). Fallback mirrors are now configured in `config/settings.yaml` and tried
-  in order; the durable fix is self-hosting RSSHub and putting its URL first.
+The original design (Haiku triage/scoring → Sonnet + web-search
+differentiation-check against FT/competitor coverage → curated 5-10
+pitch-candidate digest) is **replaced** with a simpler, cheaper flow, per
+direct product feedback that the differentiation-check stage was too
+expensive and unreliable:
+
+- **Stage 1 (acquisition)** now keeps only the single top/lead item per
+  source per fetch (`max_items: 1` in `sources.yaml`) — i.e. each
+  publication's current headline, not a firehose of items to triage.
+- **Stage 2 (`pipeline/translate/`)** replaces both the old Haiku triage and
+  the Sonnet differentiation-check: one cheap batched Haiku call translates
+  the day's headlines into English. No scoring, no web search, no
+  FT/competitor coverage check.
+- **Stage 3 (`pipeline/digest/`)** renders one card per publication (English
+  translation + Chinese headline + link) instead of a curated candidate list
+  with clusters.
+
+The old `pipeline/triage/` and `pipeline/diffcheck/` code, their SQLite
+tables, and cluster detection (`pipeline/cluster/`, which read triage tags)
+are **untouched but dormant** — not part of the default `scripts/run_all.py`
+run. `config/settings.yaml` has `triage.enabled: false` /
+`diffcheck.enabled: false`; flip either to `true` to have `run_all.py` call
+that stage again (you'd also need to update `pipeline/digest/render.py`,
+which currently only reads translation output, if you want its results back
+in the digest).
+
+`sources.yaml` was rewritten around a ~30-publication list (see the file's
+header comment for what's a known-working adapter vs. an unverified
+best-effort scrape config).
+
+## Live-run findings (first GitHub Actions dry run, 2026-07-05, original 7-source list)
+
+- **tophub scraper works** — 3,023 items fetched on the first try. (tophub is
+  no longer in `sources.yaml` — dropped in the 2026-07-20 source-list rewrite,
+  which isn't triage-volume-constrained the way tophub's firehose was suited
+  for.)
+- **rsshub.app blocks datacenter IPs** (instant 403 on every route from the
+  Actions runner). Fallback mirrors are configured in `config/settings.yaml`
+  and tried in order; the durable fix is self-hosting RSSHub and putting its
+  URL first.
 - **weibo_hot** was switched from RSSHub to a direct scraper of Weibo's public
-  hot-search JSON endpoint.
-- **36kr** was switched to its native RSS feed (`https://36kr.com/feed`), removing
-  the RSSHub dependency.
-- **china_energy_news** re-enabled with the human-verified listing URL
-  (`/jsxw`) and a broad link-pattern selector; tighten the selector once the
-  page DOM can be inspected.
-- **tophub** now filters to a platform allowlist (news/finance/tech platforms
-  only — see `platforms:` in `sources.yaml`) so entertainment hot lists don't
-  consume the triage budget.
+  hot-search JSON endpoint. (Also dropped in the 2026-07-20 rewrite — not in
+  the new source list.)
+- **36kr** was switched to its native RSS feed (`https://36kr.com/feed`),
+  removing the RSSHub dependency. Still in the source list, still enabled.
+- **china_energy_news** stayed disabled: the article list is JS-rendered,
+  needs Playwright or the underlying XHR/JSON endpoint.
 
-## Status: scaffolded, partially field-verified
+## Status: scaffolded, mostly unverified against live sites
 
-This codebase was built in a sandboxed environment with **no general internet
-egress** (only anthropic.com, pypi, npm, and a few infra domains were reachable —
-everything else, including rsshub.app, tophub.today, ft.com, and the Chinese
-outlets, returned `403` at the network gateway) and **no `ANTHROPIC_API_KEY`**
-available. That means every stage was built, unit-tested against fixtures, and
-smoke-tested end-to-end (`scripts/run_all.py --dry-run`), but the following from
-the brief's "Build order" still needs to happen with real network access and a
-real API key, ideally by you:
+Both the original build and the 2026-07-20 rewrite happened in sandboxed
+environments with **no general internet egress** — confirmed again on
+2026-07-20 (jiemian.com/yicai.com connections timed out, people.com.cn
+returned 403, all from here). GitHub Actions runners have historically had
+real internet access (see "Live-run findings" above, and two weeks of real
+scheduled runs since), so sources that fail from this sandbox may still work
+fine in CI — but most of the ~30 sources added on 2026-07-20 have never been
+checked against their live DOM at all. Before trusting the pipeline:
 
-1. **Verify each source** (`python -m pipeline.acquisition.run --source <id>`)
-   actually returns items. The `rsshub` routes in `sources.yaml` are best-effort
-   guesses based on RSSHub's route conventions — RSSHub routes drift, so check
-   https://docs.rsshub.app and fix the `route:` values that are wrong. The
-   `tophub` and `china_energy_news` scraper selectors (`pipeline/acquisition/scraping/`)
-   are similarly best-effort against remembered page structure and will likely
-   need their CSS selectors adjusted against the live DOM.
-2. **Run Stage 2 on a real day's haul** and eyeball the survivors together before
-   trusting the threshold defaults.
-3. **Run Stage 3 on a small sample** (`--limit 5`) to check cost and search
-   quality before raising the daily cap.
-4. Only then turn on the GitHub Actions cron for real.
+1. **Verify each new source** (`python -m pipeline.acquisition.run --source
+   <id>`) actually returns an item. Most `scrape_config.list_selector` values
+   are the best-effort generic guess `a[href*='.html']` — when it matches
+   nothing, `GenericSelectorScraper` logs a sample of the anchors actually on
+   the page, which is usually enough to fix the selector without needing
+   browser access. `sources.yaml`'s header comment has the full list of
+   what's known-good vs. guessed.
+2. **Run Stage 2 (translate) on a real day's haul** and check translation
+   quality before trusting it unattended.
+3. Only then rely on the GitHub Actions cron for real.
 
 Everything downstream of "does the JSON parse and does the SQL do the right
-thing" — dedupe logic, batching, threshold math, cluster detection, digest
-rendering, cost caps — is implemented and covered by tests that don't require
-network or API access (`pytest`, 22 tests, all passing).
+thing" — dedupe logic, batching, digest rendering — is implemented and
+covered by tests that don't require network or API access (`pytest`, all
+passing).
 
 ## Setup
 
@@ -65,14 +96,18 @@ Each stage is a standalone CLI plus an orchestrator:
 
 ```bash
 python -m pipeline.acquisition.run [--dry-run] [--source SOURCE_ID]
-python -m pipeline.triage.run [--limit N] [--dry-run]
-python -m pipeline.diffcheck.run [--limit N] [--dry-run]
+python -m pipeline.translate.run [--limit N] [--dry-run]
 python -m pipeline.digest.run [--no-email]
 
-python scripts/run_all.py [--dry-run]   # runs all four in order
+python scripts/run_all.py [--dry-run]   # runs all three in order
+
+# Dormant (see the 2026-07-20 pivot note above) — still runnable directly if
+# you re-enable them in config/settings.yaml:
+python -m pipeline.triage.run [--limit N] [--dry-run]
+python -m pipeline.diffcheck.run [--limit N] [--dry-run]
 ```
 
-`--dry-run` on Stage 1 fetches but doesn't write to SQLite. On Stage 2/3 it
+`--dry-run` on Stage 1 fetches but doesn't write to SQLite. On Stage 2 it
 skips the paid API call entirely and just reports the pending count — useful
 for checking the backlog before spending money. `scripts/run_all.py --dry-run`
 chains all of that into one zero-cost smoke test.
@@ -91,8 +126,11 @@ python scripts/mark_feedback.py <item_id> ignored
   changes. `scrape` sources need a module registered in
   `pipeline/acquisition/scraping/registry.py` (or use `type: scrape, route: generic`
   with a `scrape_config:` block of CSS selectors for a simple listing page).
-- `config/settings.yaml` — thresholds, batch sizes, daily caps, SMTP host/port,
-  db path. Non-secret only.
+  Every current source has `max_items: 1` — Stage 1 keeps only the top item
+  per source per fetch (that source's current headline).
+- `config/settings.yaml` — batch sizes, SMTP host/port, db path,
+  `triage.enabled` / `diffcheck.enabled` toggles for the dormant stages.
+  Non-secret only.
 - Secrets come from the environment (`.env` locally, GitHub Actions secrets in
   CI): `ANTHROPIC_API_KEY`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_TO`,
   `EMAIL_ENABLED`.
@@ -102,23 +140,21 @@ python scripts/mark_feedback.py <item_id> ignored
 ```
 pipeline/
   acquisition/   Stage 1 — rsshub / rss / scrape adapters, dedupe, rate limiting
-  triage/        Stage 2 — Haiku batch scoring against the pitch-criteria prompt
-  cluster/       cross-story theme detection (runs as part of Stage 2)
-  diffcheck/     Stage 3 — Sonnet + hosted web_search differentiation check
-  digest/        Stage 4 — markdown render, email send, feedback.csv logging
+  translate/     Stage 2 — Haiku batch translation of each source's daily headline
+  digest/        Stage 3 — markdown render, email send, feedback.csv logging
   db.py          SQLite schema + all queries
-  models.py      RawItem / TriageScore / DiffVerdict dataclasses
+  models.py      RawItem / Translation / (dormant) TriageScore / DiffVerdict dataclasses
   config.py      sources.yaml + config/settings.yaml + env loader
+  triage/        dormant — Haiku scoring against the original pitch-criteria prompt
+  diffcheck/     dormant — Sonnet + hosted web_search differentiation check
+  cluster/       dormant — cross-story theme detection (read triage tags)
 scripts/
-  run_all.py         orchestrates all four stages
+  run_all.py         orchestrates acquisition -> translate -> digest (+ dormant stages if re-enabled)
   mark_feedback.py   CLI to mark a digest candidate pitched/ignored
 .github/workflows/daily.yml   cron (06:00 Asia/Shanghai) + manual dispatch
 ```
 
-A broken source in Stage 1 is logged and skipped, never fatal to the run — this
-was tested for real: with all outbound network blocked, `run_all.py --dry-run`
-correctly logged all seven sources as failed and still produced a valid (empty)
-digest, exercising the full pipeline wiring end to end.
+A broken source in Stage 1 is logged and skipped, never fatal to the run.
 
 ## Tests
 
@@ -126,10 +162,11 @@ digest, exercising the full pipeline wiring end to end.
 pytest
 ```
 
-22 tests, no network or API key required: adapters run against fixture RSS/HTML
-in `tests/fixtures/`, Haiku/Sonnet response parsing is tested against a fake
-Anthropic client, and dedupe/cluster/digest logic run against real (temp-file)
-SQLite databases.
+All tests pass without network or API access: adapters run against fixture
+RSS/HTML in `tests/fixtures/`, Haiku/Sonnet response parsing is tested
+against a fake Anthropic client (including the current `translate` stage and
+the dormant `triage`/`diffcheck` stages), and dedupe/digest logic run against
+real (temp-file) SQLite databases.
 
 ## GitHub Actions
 
@@ -142,11 +179,11 @@ Requires repo secrets: `ANTHROPIC_API_KEY`, `SMTP_USERNAME`, `SMTP_PASSWORD`,
 
 ## Known gaps / deliberately deferred
 
-- Playwright/JS-rendered scraping isn't implemented — none of the seven starting
-  sources should need it, but if a future source does, add a dedicated adapter
-  module rather than extending `GenericSelectorScraper`.
-- Cluster detection is wired in but, per the brief, only becomes meaningful once
-  a week of real data has accumulated.
+- Playwright/JS-rendered scraping isn't implemented. `china_energy_news` is
+  disabled for this reason; a couple of the 2026-07-20 sources may turn out
+  to need it too once checked live.
 - robots.txt compliance is a manual check for now — before you enable a new
   scrape source, check its `robots.txt` yourself and set `enabled: false` with a
   comment if it disallows automated access, per the brief's constraint.
+- Most of the ~30 sources added 2026-07-20 have unverified `scrape_config`
+  selectors — see "Status" above.
